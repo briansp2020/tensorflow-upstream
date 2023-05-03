@@ -1768,6 +1768,18 @@ ENTRY TestComputation {
   %add = f32[8,5,5,32] add(%conv, %broadcasted_bias)
 )";
 
+  std::string kHloNoPad = R"(
+HloModule TestModule
+
+ENTRY TestComputation {
+  %p0 = f32[8,7,7,1] parameter(0)
+  %p1 = f32[3,3,1,32] parameter(1)
+  %conv = f32[8,5,5,32] convolution(p0, p1), window={size=3x3 pad=0_0x0_0}, dim_labels=b01f_01io->b01f
+  %bias = f32[32] parameter(2)
+  %broadcasted_bias = f32[8,5,5,32] broadcast(%bias), dimensions={3}
+  %add = f32[8,5,5,32] add(%conv, %broadcasted_bias)
+)";
+
   std::string kHloRELU = R"(
   %zero = f32[] constant(0)
   %zeros = f32[8,5,5,32] broadcast(%zero), dimensions={}
@@ -1792,6 +1804,8 @@ ENTRY TestComputation {
   EXPECT_TRUE(RunAndCompare(kHlo+kHloRELU, ErrorSpec{0.01, 0.01}));
   EXPECT_TRUE(RunAndCompare(kHlo+kHloTANH, ErrorSpec{0.01, 0.01}));
   EXPECT_TRUE(RunAndCompare(kHlo+kHloELU, ErrorSpec{0.01, 0.01}));
+  EXPECT_TRUE(RunAndCompare(std::regex_replace(kHlo+kHloRELU, std::regex("f32"), "f16"), ErrorSpec{0.03, 0.03}));
+  EXPECT_TRUE(RunAndCompare(std::regex_replace(kHloNoPad+kHloRELU, std::regex("f32"), "f16"), ErrorSpec{0.03, 0.03}));
 }
 
 XLA_TEST_F(ConvolutionHloTest, TestFusedConv3D) {

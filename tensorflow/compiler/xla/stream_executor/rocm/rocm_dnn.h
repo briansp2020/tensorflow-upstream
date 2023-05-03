@@ -281,13 +281,10 @@ class MIOpenSupport : public dnn::DnnSupport {
   bool GetMIOpenConvolveAlgorithmsImmediateMode(
       dnn::ConvolutionKind kind, dnn::DataType input_type,
       dnn::DataType output_type, Stream* stream,
-      const dnn::BatchDescriptor& input_descriptor, DeviceMemoryBase input_data,
+      const dnn::BatchDescriptor& input_descriptor,
       const dnn::FilterDescriptor& filter_descriptor,
-      DeviceMemoryBase filter_data,
       const dnn::BatchDescriptor& output_descriptor,
-      DeviceMemoryBase output_data,
       const dnn::ConvolutionDescriptor& convolution_descriptor,
-      ScratchAllocator* scratch_allocator,
       std::vector<dnn::ProfileResult>* out_algorithms);
 
   bool GetMIOpenConvolveAlgorithmsFindMode(

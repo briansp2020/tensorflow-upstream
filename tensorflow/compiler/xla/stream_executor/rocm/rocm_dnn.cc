@@ -97,6 +97,8 @@ string ToString(miopenStatus_t status) {
       return "miopenStatusNotImplemented";
     case miopenStatusUnknownError:
       return "miopenStatusUnknownError";
+    case miopenStatusUnsupportedOp:
+      return "miopenStatusUnsupportedOp";
     default:
       return absl::StrCat("<unknown miopen status: ", static_cast<int>(status),
                           ">");
@@ -1476,6 +1478,10 @@ class ScopedFusionPlanConvolutionBiasActivation : public ScopedFusionPlanBase {
         miopen_handle, input_descriptor, filter_descriptor, conv_descriptor,
         bias_descriptor, act_descriptor);
 
+    // TODO:
+    // is there any benefit to caching vs. creating a new plan each time?
+    // is it even possible to reuse the plan (possibly concurrently,
+    // from different threads)?
     bool is_compiled = CachedFusionPlans::FindOrCreate(
         hash, &fusion_plan_, miopenVerticalFusion, input_descriptor);
     if(is_compiled)
@@ -1511,7 +1517,7 @@ class ScopedFusionPlanConvolutionBiasActivation : public ScopedFusionPlanBase {
 
         CachedFusionPlans::MarkFusionPlanUnsupported(hash);
       } else {
-        VLOG(2) << "Fusion Plan compile succedded (CBA) ";
+        VLOG(2) << "Fusion Plan compile succeeded (CBA) ";
         fusion_plan_compiled_ = true;
       }
     } else {
@@ -3442,9 +3448,9 @@ bool MIOpenSupport::GetMIOpenConvolveAlgorithms(
   return use_immediate_mode_
              ? GetMIOpenConvolveAlgorithmsImmediateMode(
                    kind, input_type, output_type, 
-                   stream, input_descriptor, input_data,
-                   filter_descriptor, filter_data, output_descriptor,
-                   output_data, convolution_descriptor, scratch_allocator,
+                   stream, input_descriptor,
+                   filter_descriptor, output_descriptor,
+                   convolution_descriptor,
                    out_algorithms)
              : GetMIOpenConvolveAlgorithmsFindMode(
                    kind, input_type, output_type, 
@@ -3458,12 +3464,10 @@ bool MIOpenSupport::GetMIOpenConvolveAlgorithms(
 bool MIOpenSupport::GetMIOpenConvolveAlgorithmsImmediateMode(
     dnn::ConvolutionKind kind, dnn::DataType input_type, 
     dnn::DataType output_type, Stream* stream,
-    const dnn::BatchDescriptor& input_descriptor, DeviceMemoryBase input_data,
+    const dnn::BatchDescriptor& input_descriptor,
     const dnn::FilterDescriptor& filter_descriptor,
-    DeviceMemoryBase filter_data, const dnn::BatchDescriptor& output_descriptor,
-    DeviceMemoryBase output_data,
+    const dnn::BatchDescriptor& output_descriptor,
     const dnn::ConvolutionDescriptor& convolution_descriptor,
-    ScratchAllocator* scratch_allocator,
     std::vector<dnn::ProfileResult>* out_algorithms) {
   auto miopen = miopen_->GetHandle(parent_, stream);
 
@@ -4964,6 +4968,12 @@ public:
         return tsl::errors::Internal(
             "RocmFusedConvRunner cached across multiple StreamExecutors.");
       }
+
+      if(!fusion_plan_.CompilationSucceeded())
+          return execute_unfused(stream, profile_result,
+              scratch_memory, input_data, filter_data, side_input_data,
+              bias_data, output_data);
+
       auto algo = MakeAlgorithmDesc();
       auto miopen = miopen_->GetHandle(parent_, stream);
 
@@ -5088,10 +5098,6 @@ public:
         fusion_plan_(miopen_->GetHandle(parent, stream).handle(), input_nd_.handle(), filter_.handle(),
           conv_.handle(), bias_nd_.handle(), activation_desc_)
   {
-      if (!fusion_plan_.CompilationSucceeded()) {
-        throw tsl::errors::Internal("Failed to compile fused convolution");
-      }
-
       std::vector<int64_t> dims_filter = dnn_filter_.full_dims(dnn_filter_.layout());
       std::vector<int64_t> strides_filter = dnn_filter_.full_strides(dnn_filter_.layout());
       std::vector<int64_t> dims_output = dnn_output_nd_.full_dims(dnn_output_nd_.layout());
@@ -5126,10 +5132,57 @@ public:
           output_nd_.handle(), &workspace_size_);
 
       VLOG(2) << "True workspace size " << workspace_size_1 << " " << workspace_size_;
+  }
 
-      status = wrap::miopenCreateFusionPlan(&fusion_desc_, miopenVerticalFusion,
-                                                 input_nd_.handle());
+  tsl::Status execute_unfused(Stream* stream, dnn::ProfileResult* profile_result,
+                         DeviceMemoryBase scratch_memory,
+                         DeviceMemoryBase input_data,
+                         DeviceMemoryBase filter_data,
+                         DeviceMemoryBase side_input_data,
+                         DeviceMemoryBase bias_data,
+                         DeviceMemoryBase output_data) const {
+      auto miopen = miopen_->GetHandle(parent_, stream);
 
+      auto status = wrap::miopenConvolutionForwardImmediate(
+        miopen.handle(), filter_.handle(), filter_data.opaque(),
+        input_nd_.handle(), input_data.opaque(), conv_.handle(),
+        output_nd_.handle(), output_data.opaque(),
+        scratch_memory.opaque(), scratch_memory.size(),
+        static_cast<uint64_t>(algo_id_));
+      if (status != miopenStatusSuccess) {
+        VLOG(0) << "Failed to enqueue convolution: " 
+                << stream_executor::gpu::ToString(status);
+        return tsl::errors::Internal(
+            "Failed to enqueue convolution: ", 
+            stream_executor::gpu::ToString(status));
+      }
+
+      static const float one=1.0f, zero=0.0f;
+
+      status = wrap::miopenConvolutionForwardBias(miopen.handle(), &one, bias_nd_.handle(),
+        bias_data.opaque(), &zero, output_nd_.handle(), output_data.opaque());
+      if (status != miopenStatusSuccess) {
+        VLOG(0) << "Failed to enqueue miopenConvolutionForwardBias: " 
+                << stream_executor::gpu::ToString(status);
+        return tsl::errors::Internal(
+            "Failed to enqueue miopenConvolutionForwardBias: ", 
+            stream_executor::gpu::ToString(status));
+      }
+
+      if (activation_desc_.miopen_activation_mode_ != miopenActivationPASTHRU) {
+        status = wrap::miopenActivationForward(miopen.handle(), 
+          activation_desc_.handle(),
+          &one, output_nd_.handle(), output_data.opaque(), &zero, 
+          output_nd_.handle(), output_data.opaque());
+        if (status != miopenStatusSuccess) {
+          VLOG(0) << "Failed to enqueue miopenActivationForward: " 
+                  << stream_executor::gpu::ToString(status);
+          return tsl::errors::Internal(
+              "Failed to enqueue miopenActivationForward: ", 
+              stream_executor::gpu::ToString(status));
+        }
+      }
+      return ::tsl::OkStatus();
   }
 
   // Internal form of ToAlgorithmDesc without the StatusOr.
@@ -5137,14 +5190,11 @@ public:
     return {algo_id_, /*tensor_ops_enabled_*/ true, workspace_size_};
   }
 
-  mutable miopenFusionPlanDescriptor_t fusion_desc_;
-
   std::string desc_;
 
   GpuExecutor* parent_;
   MIOpenAccess* miopen_;
   int64_t algo_id_;
-  //bool tensor_ops_enabled_;
   size_t workspace_size_;
   dnn::DataType input_type_, bias_type_;
   double conv_scale_, side_input_scale_, leakyrelu_alpha_;
