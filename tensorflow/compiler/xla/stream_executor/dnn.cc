@@ -250,6 +250,7 @@ DnnSupport::FusedMHAScaleBiasSoftmaxRunnerFromDesc(
 
 bool DnnSupport::GetMIOpenConvolveAlgorithms(
     dnn::ConvolutionKind /*kind*/, dnn::DataType /*element_type*/,
+    dnn::DataType,
     Stream* /*stream*/, const dnn::BatchDescriptor& /*input_descriptor*/,
     DeviceMemoryBase input_data,
     const dnn::FilterDescriptor& /*filter_descriptor*/,

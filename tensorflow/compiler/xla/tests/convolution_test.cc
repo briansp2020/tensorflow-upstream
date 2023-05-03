@@ -17,6 +17,7 @@ limitations under the License.
 // strides and padding).
 
 #include <memory>
+#include <regex>
 
 #include "tensorflow/compiler/xla/array2d.h"
 #include "tensorflow/compiler/xla/array4d.h"
@@ -1754,7 +1755,8 @@ ENTRY TestComputation {
 }
 
 XLA_TEST_F(ConvolutionHloTest, TestFusedConv2D) {
-  constexpr char kHlo[] = R"(
+
+  std::string kHlo = R"(
 HloModule TestModule
 
 ENTRY TestComputation {
@@ -1764,11 +1766,32 @@ ENTRY TestComputation {
   %bias = f32[32] parameter(2)
   %broadcasted_bias = f32[8,5,5,32] broadcast(%bias), dimensions={3}
   %add = f32[8,5,5,32] add(%conv, %broadcasted_bias)
+)";
+
+  std::string kHloRELU = R"(
   %zero = f32[] constant(0)
   %zeros = f32[8,5,5,32] broadcast(%zero), dimensions={}
   ROOT relu = f32[8,5,5,32] maximum(%zeros, %add)
 })";
-  EXPECT_TRUE(RunAndCompare(kHlo, ErrorSpec{0.01, 0.01}));
+
+  std::string kHloTANH = R"(
+  ROOT result = f32[8,5,5,32] tanh(%add)
+})";
+
+  std::string kHloELU = R"(
+  %zero = f32[] constant(0)
+  %zeros = f32[8,5,5,32] broadcast(%zero), dimensions={}
+  %one = f32[] constant(1)
+  %ones = f32[8,5,5,32] broadcast(%one), dimensions={}
+  %exp = f32[8,5,5,32] exponential(%add)
+  %expm1 = f32[8,5,5,32] subtract(%exp, %ones)
+  %sgn = pred[8,5,5,32] compare(%add, %zeros), direction=GT
+  ROOT elu = f32[8,5,5,32] select(%sgn, %add, %expm1)
+})";
+
+  EXPECT_TRUE(RunAndCompare(kHlo+kHloRELU, ErrorSpec{0.01, 0.01}));
+  EXPECT_TRUE(RunAndCompare(kHlo+kHloTANH, ErrorSpec{0.01, 0.01}));
+  EXPECT_TRUE(RunAndCompare(kHlo+kHloELU, ErrorSpec{0.01, 0.01}));
 }
 
 XLA_TEST_F(ConvolutionHloTest, TestFusedConv3D) {

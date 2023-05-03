@@ -350,7 +350,9 @@ StatusOr<AutotuneEntry<se::dnn::ConvOp>> AutotuneUnfusedConv(
 
     std::vector<se::dnn::ProfileResult> algorithms;
     if (!stream->parent()->GetMIOpenConvolveAlgorithms(
-            kind, se::dnn::ToDataType<T>::value, stream, input_desc, input_ptr,
+            kind, se::dnn::ToDataType<T>::value,
+            se::dnn::ToDataType<T>::value,
+            stream, input_desc, input_ptr,
             filter_desc, filter_ptr, output_desc, output_ptr, conv_desc,
             &scratch_allocator, &algorithms)) {
       return errors::Unknown(
