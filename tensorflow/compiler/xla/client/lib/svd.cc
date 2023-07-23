@@ -108,7 +108,7 @@ struct OneSidedJacobiRotation {
 // A[i, j:] * H = [sigma, 0, 0, ..., 0]
 //
 StatusOr<HouseHolderResult> HouseRow(XlaOp a, XlaOp i, XlaOp j, XlaOp eps,
-                                     PrecisionConfig::Precision precision) {
+                                     PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int64_t num_dims = a_shape.rank();
@@ -173,7 +173,7 @@ StatusOr<HouseHolderResult> HouseRow(XlaOp a, XlaOp i, XlaOp j, XlaOp eps,
 // H * A[i:, j] = [xnorm, 0, 0, ..., 0]
 //
 StatusOr<HouseHolderResult> HouseCol(XlaOp a, XlaOp i, XlaOp j, XlaOp eps,
-                                     PrecisionConfig::Precision precision) {
+                                     PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int64_t num_dims = a_shape.rank();
@@ -251,7 +251,7 @@ StatusOr<HouseHolderResult> HouseCol(XlaOp a, XlaOp i, XlaOp j, XlaOp eps,
 //    return LL, A, RR
 //
 StatusOr<SVDResult> HouseHolderBidiagonalization(
-    XlaOp a, XlaOp eps, PrecisionConfig::Precision precision) {
+    XlaOp a, XlaOp eps, PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int64_t num_dims = a_shape.rank();
@@ -821,7 +821,7 @@ StatusOr<SVDResult> SortBySingularValuesAndPostProcessing(SVDResult result) {
 //    return U, np.diag(D), V
 //
 SVDResult SVD(XlaOp a, int64_t max_iter, float epsilon,
-              PrecisionConfig::Precision precision) {
+              PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   auto return_error = [&](const Status& status) {
     SVDResult result;

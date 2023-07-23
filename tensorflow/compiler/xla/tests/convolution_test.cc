@@ -96,6 +96,8 @@ class ForwardPassConvolution_3x3x256_256_OutputZ_Iota : public ConvolutionTest {
     // allowed to round to bfloat16 which only has 7 mantissa bits.
     precision.add_operand_precision(PrecisionConfig::HIGHEST);
     precision.add_operand_precision(PrecisionConfig::DEFAULT);
+    precision.add_operand_precision(PrecisionConfig::F8OFF);
+    precision.add_operand_precision(PrecisionConfig::F8OFF);
     Conv(lhs, rhs, {1, 1}, Padding::kValid, /*feature_group_count=*/1,
          /*batch_group_count=*/1, &precision);
 

@@ -42,7 +42,7 @@ struct SVDResult {
 // representation, which is more memory efficient, especially in the case of
 // tall-skinny matrices.
 SVDResult SVD(XlaOp a, int64_t max_iter = 100, float epsilon = 1e-6,
-              PrecisionConfig::Precision precision = PrecisionConfig::HIGHEST);
+              PrecisionConfig precision = PrecisionConfigHIGHEST());
 
 }  // namespace xla
 

@@ -27,7 +27,9 @@ typedef Eigen::GpuDevice GPUDevice;
 template <typename Device, typename T, bool USE_CUBLAS>
 class GRUCellBlockOp : public OpKernel {
  public:
-  explicit GRUCellBlockOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+  explicit GRUCellBlockOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
+    f8_flags_ = ctx->GetFlagsF8();
+  }
   // TODO(gitegaurav) Replace the input checks with some smarter function.
   void Compute(OpKernelContext* ctx) override {
     // Grab the input tensors.
@@ -155,7 +157,7 @@ class GRUCellBlockOp : public OpKernel {
     const Device& device = ctx->eigen_device<Device>();
 
     functor::GRUBlockCellFprop<Device, T, USE_CUBLAS>(batch_size, input_size,
-                                                      cell_size)(
+                                                      cell_size, f8_flags_)(
         ctx, device, x_tensor->matrix<T>(), h_prev_tensor->matrix<T>(),
         w_ru_tensor->matrix<T>(), w_c_tensor->matrix<T>(),
         b_ru_tensor->vec<T>(), b_c_tensor->vec<T>(), r_u_bar_tensor.matrix<T>(),
@@ -163,6 +165,8 @@ class GRUCellBlockOp : public OpKernel {
         h_tensor->matrix<T>(), x_h_prev_tensor.matrix<T>(),
         x_h_prevr_tensor.matrix<T>());
   }
+private:
+  int f8_flags_;
 };
 
 // Register the Block GRU cell kernel for CPU.
@@ -177,7 +181,9 @@ REGISTER_KERNEL(float);
 template <typename Device, typename T, bool USE_CUBLAS>
 class GRUBlockCellGradOp : public OpKernel {
  public:
-  explicit GRUBlockCellGradOp(OpKernelConstruction* ctx) : OpKernel(ctx) {}
+  explicit GRUBlockCellGradOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
+    f8_flags_ = ctx->GetFlagsF8();
+  }
 
   void Compute(OpKernelContext* ctx) override {
     // Grab the input tensors.
@@ -378,7 +384,7 @@ class GRUBlockCellGradOp : public OpKernel {
     const Device& device = ctx->eigen_device<Device>();
 
     functor::GRUBlockCellBprop<Device, T, USE_CUBLAS>(batch_size, input_size,
-                                                      cell_size)(
+                                                      cell_size, f8_flags_)(
         ctx, device, x_tensor->matrix<T>(), h_prev_tensor->matrix<T>(),
         w_ru_tensor->matrix<T>(), w_c_tensor->matrix<T>(),
         b_ru_tensor->vec<T>(), b_c_tensor->vec<T>(), r_tensor->matrix<T>(),
@@ -390,6 +396,8 @@ class GRUBlockCellGradOp : public OpKernel {
         d_x_component_1_h_prev_component_1.matrix<T>(),
         d_x_component_2_h_prevr.matrix<T>());
   }
+private:
+  int f8_flags_;
 };
 
 // Register the gradient kernel for CPU.

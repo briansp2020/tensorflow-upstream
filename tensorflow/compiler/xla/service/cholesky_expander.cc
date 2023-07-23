@@ -53,7 +53,7 @@ namespace xla {
 //   return l
 // Returns a (result, error) pair.
 StatusOr<std::pair<XlaOp, XlaOp>> CholeskyExpander::CholeskyUnblocked(
-    XlaOp a, PrecisionConfig::Precision precision) {
+    XlaOp a, PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int ndims = a_shape.rank();
@@ -124,7 +124,7 @@ StatusOr<std::pair<XlaOp, XlaOp>> CholeskyExpander::CholeskyUnblocked(
 }
 
 XlaOp CholeskyExpander::BuildCholesky(XlaOp a, int64_t block_size,
-                                      PrecisionConfig::Precision precision) {
+                                      PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
@@ -243,7 +243,7 @@ StatusOr<HloInstruction*> CholeskyExpander::ExpandInstruction(
     XlaOp a = Parameter(&builder, 0, instruction->operand(0)->shape(), "a");
     XlaOp l = BuildCholesky(MaybeTransposeInMinorDims(a, !options.lower()),
                             /*block_size=*/128,
-                            /*precision=*/PrecisionConfig::HIGHEST);
+                            /*precision=*/PrecisionConfigHIGHEST());
     MaybeTransposeInMinorDims(l, !options.lower());
 
     TF_ASSIGN_OR_RETURN(XlaComputation xla_computation, builder.Build());

@@ -363,6 +363,8 @@ message HloInstructionProto {
 
   // Represents the K value for top-k.
   int64 k = 81;
+
+  string custom_desc = 82;
 }
 
 // Serialization of HloComputation.

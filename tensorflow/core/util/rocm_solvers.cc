@@ -269,7 +269,7 @@ Status GpuSolver::forward_input_or_allocate_scoped_tensor(
 #define TF_RETURN_IF_ROCBLAS_ERROR(expr)                                  \
   do {                                                                    \
     auto status = (expr);                                                 \
-    if (TF_PREDICT_FALSE(status != rocblas_status_success)) {             \
+    if (TF_PREDICT_FALSE((int)status != (int)rocblas_status_success)) {   \
       return errors::Internal(__FILE__, ":", __LINE__,                    \
                               ": rocBlas call failed status = ", status); \
     }                                                                     \

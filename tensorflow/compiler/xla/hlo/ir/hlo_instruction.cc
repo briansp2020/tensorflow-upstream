@@ -70,6 +70,16 @@ using absl::StrAppend;
 using absl::StrCat;
 using absl::StrJoin;
 
+static bool testPrecisionConfigF8(const PrecisionConfig& cfg) {
+  for(int i=0; i<cfg.operand_precision_size(); i++)
+  {
+      int flag = cfg.operand_precision()[i];
+      if(flag>=PrecisionConfig::F8 && flag<=PrecisionConfig::F8OFF)
+        return true;
+  }
+  return false;
+}
+
 HloInstruction* HloInstruction::AddInstruction(
     std::unique_ptr<HloInstruction> derived_instruction) {
   HloInstruction* derived =
@@ -723,7 +733,8 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
       TF_RET_CHECK(absl::c_all_of(proto.precision_config().operand_precision(),
                                   PrecisionConfig::Precision_IsValid));
       PrecisionConfig precision_config = proto.precision_config();
-      precision_config.mutable_operand_precision()->Resize(
+      if(precision_config.mutable_operand_precision()->size() < proto.operand_ids_size())
+        precision_config.mutable_operand_precision()->Resize(
           proto.operand_ids_size(), PrecisionConfig::DEFAULT);
       instruction = CreateConvolve(
           shape, operands(0), operands(1),
@@ -816,7 +827,8 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
       TF_RET_CHECK(absl::c_all_of(proto.precision_config().operand_precision(),
                                   PrecisionConfig::Precision_IsValid));
       PrecisionConfig precision_config = proto.precision_config();
-      precision_config.mutable_operand_precision()->Resize(
+      if(precision_config.mutable_operand_precision()->size() < proto.operand_ids_size())
+        precision_config.mutable_operand_precision()->Resize(
           proto.operand_ids_size(), PrecisionConfig::DEFAULT);
       *custom_call_instr->mutable_precision_config() = precision_config;
       std::vector<std::pair<ShapeIndex, std::pair<int64_t, ShapeIndex>>>
@@ -927,8 +939,13 @@ StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
       TF_RET_CHECK(absl::c_all_of(proto.precision_config().operand_precision(),
                                   PrecisionConfig::Precision_IsValid));
       PrecisionConfig precision_config = proto.precision_config();
-      precision_config.mutable_operand_precision()->Resize(
-          proto.operand_ids_size(), PrecisionConfig::DEFAULT);
+      //if(precision_config.mutable_operand_precision()->size() < proto.operand_ids_size())
+      //    precision_config.mutable_operand_precision()->Resize(
+      //      proto.operand_ids_size(), PrecisionConfig::DEFAULT);
+      auto attr = proto.frontend_attributes().map();
+      if(attr.find("grad_flags") == attr.end() && !testPrecisionConfigF8(precision_config)) {
+        LOG(WARNING) << "FromProto: kDot with no grad_flags";
+      }
       instruction = std::make_unique<HloDotInstruction>(
           shape, operands(0), operands(1), proto.dot_dimension_numbers(),
           precision_config);

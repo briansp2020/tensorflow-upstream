@@ -41,7 +41,8 @@ Status GemmThunk::ExecuteOnStream(const ExecuteParams& params) {
   const BufferAllocations& allocs = *params.buffer_allocations;
   return RunGemm(config_, allocs.GetDeviceAddress(lhs_buffer_),
                  allocs.GetDeviceAddress(rhs_buffer_),
-                 allocs.GetDeviceAddress(output_buffer_), params.stream);
+                 allocs.GetDeviceAddress(output_buffer_), params.stream,
+                 std::nullopt, int(se::blas::CallContext::kSet));
 }
 
 }  // namespace gpu

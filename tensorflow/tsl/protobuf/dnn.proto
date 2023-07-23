@@ -173,6 +173,7 @@ message ConvolutionDescriptorProto {
   ConvolutionMode convolution_mode = 6;
   // Tensorflow node name, same as in NodeDef, for debugging purposes.
   string name = 7;
+  int32 grad_flags = 8;
 }
 
 // FusedMHAKind kind

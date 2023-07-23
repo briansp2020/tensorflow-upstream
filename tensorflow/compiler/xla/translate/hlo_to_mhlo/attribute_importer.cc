@@ -35,7 +35,7 @@ mlir::ArrayAttr ConvertPrecisionConfig(const PrecisionConfig* config,
 
   // TODO(b/129709049) The HLO text format elides this in the all DEFAULT
   // case and the parser sticks it in. Maybe we should too.
-  llvm::SmallVector<mlir::Attribute, 4> operand_precision_attrs;
+  llvm::SmallVector<mlir::Attribute, 6> operand_precision_attrs;
 
   for (auto prec : config->operand_precision()) {
     operand_precision_attrs.push_back(mlir::mhlo::PrecisionAttr::get(

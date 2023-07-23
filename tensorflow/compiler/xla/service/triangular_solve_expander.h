@@ -44,22 +44,22 @@ class TriangularSolveExpander : public OpExpanderPass {
   XlaOp SolveByInvertingDiagonalBlocks(XlaOp a, XlaOp b, bool left_side,
                                        bool lower, bool transpose_a,
                                        bool conjugate_a, bool unit_diagonal,
-                                       PrecisionConfig::Precision precision);
+                                       PrecisionConfig precision);
 
   // Helper function used by SolveByInvertingDiagonalBlocks
   virtual XlaOp InvertDiagonalBlocks(XlaOp diag_blocks, bool lower_triangular,
-                                     PrecisionConfig::Precision precision);
+                                     PrecisionConfig precision);
 
   // Performs a direct triangular solve, suitable for case with small matrices
   // or with large batch.
   XlaOp SolveDirectly(XlaOp a, XlaOp b, bool left_side, bool lower,
                       bool transpose_a, bool conjugate_a, bool unit_diagonal,
-                      PrecisionConfig::Precision precision);
+                      PrecisionConfig precision);
 
   XlaOp BuildTriangularSolve(XlaOp a, XlaOp b, bool left_side, bool lower,
                              bool transpose_a, bool conjugate_a,
                              bool unit_diagonal, int64_t block_size,
-                             PrecisionConfig::Precision precision);
+                             PrecisionConfig precision);
 
  private:
   // Block size for BuildTriangularSolve

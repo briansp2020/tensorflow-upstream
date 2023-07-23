@@ -40,7 +40,7 @@ void TensorCuBlasGemm<T>::operator()(OpKernelContext* ctx, bool transa,
                                      bool transb, uint64 m, uint64 n, uint64 k,
                                      float alpha, const T* a, int lda,
                                      const T* b, int ldb, float beta, T* c,
-                                     int ldc) {
+                                     int ldc, int f8_flags) {
 #if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
   se::blas::Transpose trans[] = {se::blas::Transpose::kNoTranspose,
                                  se::blas::Transpose::kTranspose};
@@ -53,6 +53,11 @@ void TensorCuBlasGemm<T>::operator()(OpKernelContext* ctx, bool transa,
     a_ptr, lda, b_ptr, ldb, &c_ptr, ldc,
     &alpha, &beta
   );
+  if(!(f8_flags & 256)) {
+    printf("TensorCuBlasGemm<T>::operator(): uninitialized f8_flags\n");
+    exit(-1);
+  }
+  call.context = (se::blas::CallContext) f8_flags;
 
   OP_REQUIRES_OK(
       ctx, ctx->op_device_context()->stream()->ThenBlasGemm(call));

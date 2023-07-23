@@ -102,10 +102,11 @@ struct TensorZeroPadding {
 };
 
 struct LSTMBlockCell {
-  LSTMBlockCell(const int batch_size, const int input_size, const int cell_size)
+  LSTMBlockCell(const int batch_size, const int input_size, const int cell_size,
+      int f8)
       : batch_size_(batch_size),
         input_size_(input_size),
-        cell_size_(cell_size) {}
+        cell_size_(cell_size), f8_(f8) {}
 
   int batch_size() const { return batch_size_; }
 
@@ -155,6 +156,7 @@ struct LSTMBlockCell {
   const int batch_size_;
   const int input_size_;
   const int cell_size_;
+  const int f8_;
 };
 
 // See lstm_ops.cc for CPUDevice implementation and lstm_ops_gpu.cu.cc for
@@ -162,8 +164,8 @@ struct LSTMBlockCell {
 template <typename Device, typename T, bool USE_CUBLAS, GateLayout gate_layout>
 struct LSTMBlockCellFprop : public LSTMBlockCell {
   LSTMBlockCellFprop(const int batch_size, const int input_size,
-                     const int cell_size)
-      : LSTMBlockCell(batch_size, input_size, cell_size) {}
+                     const int cell_size, const int f8)
+      : LSTMBlockCell(batch_size, input_size, cell_size, f8) {}
 
   void operator()(OpKernelContext* ctx, const Device& d,
                   const float forget_bias, const float cell_clip,
@@ -187,8 +189,8 @@ struct LSTMBlockCellFprop : public LSTMBlockCell {
 template <typename Device, typename T, bool USE_CUBLAS, GateLayout gate_layout>
 struct LSTMBlockCellBprop : public LSTMBlockCell {
   LSTMBlockCellBprop(const int batch_size, const int input_size,
-                     const int cell_size)
-      : LSTMBlockCell(batch_size, input_size, cell_size) {}
+                     const int cell_size, const int f8)
+      : LSTMBlockCell(batch_size, input_size, cell_size, f8) {}
 
   void operator()(
       OpKernelContext* ctx, const Device& d, bool use_peephole,
@@ -212,8 +214,8 @@ struct LSTMBlockCellBprop : public LSTMBlockCell {
 template <typename Device, typename T, bool USE_CUBLAS, GateLayout gate_layout>
 struct BlockLSTMBprop : public LSTMBlockCell {
   BlockLSTMBprop(const int batch_size, const int input_size,
-                 const int cell_size)
-      : LSTMBlockCell(batch_size, input_size, cell_size) {}
+                 const int cell_size, int f8)
+      : LSTMBlockCell(batch_size, input_size, cell_size, f8) {}
 
   void operator()(
       OpKernelContext* ctx, const Device& d, bool use_peephole,
@@ -276,7 +278,7 @@ struct BlockLSTMBprop : public LSTMBlockCell {
     typename TTypes<T>::ConstMatrix const_dgates(dgates.data(),
                                                  dgates.dimensions());
     TensorBlasGemm<Device, T, USE_CUBLAS>::compute(
-        ctx, d, false, true, 1.f, const_dgates, w, 0.f, xh_grad);
+        ctx, d, false, true, 1.f, const_dgates, w, 0.f, xh_grad, f8_+1);
 
     // xh.
     xh.slice(xh_x_offsets(), xh_x_extents()).device(d) = x;
@@ -289,7 +291,7 @@ struct BlockLSTMBprop : public LSTMBlockCell {
 
     // w_grad.
     TensorBlasGemm<Device, T, USE_CUBLAS>::compute(
-        ctx, d, true, false, 1.f, const_xh, const_dgates, 1.f, w_grad);
+        ctx, d, true, false, 1.f, const_xh, const_dgates, 1.f, w_grad, f8_+1);
 
     // b_grad.
     b_grad.device(d) += dgates.sum(Eigen::array<int, 1>({0}));

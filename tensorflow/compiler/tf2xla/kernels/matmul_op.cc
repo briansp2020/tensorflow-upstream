@@ -51,6 +51,17 @@ class MatMulOp : public XlaOpKernel {
       OP_REQUIRES_OK(ctx, ctx->GetAttr("a_is_sparse", &dummy_is_sparse));
       OP_REQUIRES_OK(ctx, ctx->GetAttr("b_is_sparse", &dummy_is_sparse));
     }
+    bool grad_a = false, grad_b = false;
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("grad_a", &grad_a));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("grad_b", &grad_b));
+    precision_config_.add_operand_precision(xla::PrecisionConfig::DEFAULT);
+    precision_config_.add_operand_precision(xla::PrecisionConfig::DEFAULT);
+    int f8_flags = ctx->GetFlagsF8();
+    bool f8_matmul = false;
+    tsl::Status status = tensorflow::ReadBoolFromEnvVar("F8_MM", false, &f8_matmul);
+    if(f8_matmul)
+      f8_flags |= 4;
+    SetXlaPrecisionConfigF8Flags(precision_config_, f8_flags, grad_a, grad_b);
   }
 
   ~MatMulOp() override = default;
@@ -95,8 +106,8 @@ class MatMulOp : public XlaOpKernel {
         tsl::tensor_float_32_execution_enabled()
             ? xla::PrecisionConfig::DEFAULT
             : xla::PrecisionConfig::HIGHEST;
-    ctx->SetOutput(0,
-                   xla::BatchDot(a, transpose_a_, b, transpose_b_, precision));
+    auto retval = xla::BatchDot(a, transpose_a_, b, transpose_b_, precision_config_);
+    ctx->SetOutput(0, retval);
   }
 
  private:
@@ -105,6 +116,7 @@ class MatMulOp : public XlaOpKernel {
   bool transpose_b_;
   DataType a_type_;
   DataType b_type_;
+  xla::PrecisionConfig precision_config_; 
 };
 
 REGISTER_XLA_OP(Name("MatMul").TypeConstraint("T", kMatmulTypes), MatMulOp);

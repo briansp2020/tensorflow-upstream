@@ -62,7 +62,7 @@ void LSTMBlockCellFpropWithEigen(
   typename TTypes<T>::ConstMatrix const_xh(xh.data(), xh.dimensions());
   TensorBlasGemm<CPUDevice, T, false /* USE_CUBLAS */>::compute(
       ctx, d, false, false, typename gemm_compute_type<T>::type(1.f), const_xh,
-      w, typename gemm_compute_type<T>::type(0.f), gates);
+      w, typename gemm_compute_type<T>::type(0.f), gates, 0+256);
   Eigen::array<Eigen::DenseIndex, 2> b_shape({1, b.dimensions()[0]});
   Eigen::array<Eigen::DenseIndex, 2> broadcast_shape({cell.batch_size(), 1});
   gates.device(d) += b.reshape(b_shape).broadcast(broadcast_shape);
@@ -301,6 +301,7 @@ class LSTMBlockCellOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("forget_bias", &forget_bias_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("cell_clip", &cell_clip_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("use_peephole", &use_peephole_));
+    f8_flags_ = ctx->GetFlagsF8();
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -481,7 +482,7 @@ class LSTMBlockCellOp : public OpKernel {
                                         h_tensor->dims(), "."));
 
     functor::LSTMBlockCellFprop<Device, T, USE_CUBLAS, gate_layout>(
-        batch_size, input_size, cell_size)(
+        batch_size, input_size, cell_size, f8_flags_)(
         ctx, device, forget_bias_, cell_clip_, use_peephole_,
         x_tensor->matrix<T>(), cs_prev_tensor->matrix<T>(),
         h_prev_tensor->matrix<T>(), w_tensor->matrix<T>(), wci_tensor->vec<T>(),
@@ -496,6 +497,7 @@ class LSTMBlockCellOp : public OpKernel {
   float forget_bias_;
   float cell_clip_;
   bool use_peephole_;
+  int f8_flags_;
 };
 
 #define REGISTER_KERNEL(T)                                             \
@@ -523,6 +525,7 @@ class LSTMBlockCellGradOp : public OpKernel {
  public:
   explicit LSTMBlockCellGradOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("use_peephole", &use_peephole_));
+    f8_flags_ = ctx->GetFlagsF8();
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -743,7 +746,7 @@ class LSTMBlockCellGradOp : public OpKernel {
     functor::TensorZero<Device, T>()(device, wco_grad_tensor->flat<T>());
 
     functor::LSTMBlockCellBprop<Device, T, USE_CUBLAS, gate_layout>(
-        batch_size, input_size, cell_size)(
+        batch_size, input_size, cell_size, f8_flags_)(
         ctx, device, use_peephole_, x_tensor->matrix<T>(),
         cs_prev_tensor->matrix<T>(), h_prev_tensor->matrix<T>(),
         w_tensor->matrix<T>(), wci_tensor->vec<T>(), wcf_tensor->vec<T>(),
@@ -760,6 +763,7 @@ class LSTMBlockCellGradOp : public OpKernel {
 
  protected:
   bool use_peephole_;
+  int f8_flags_;
 };
 
 #define REGISTER_KERNEL(T)                                                 \
@@ -901,6 +905,7 @@ class BlockLSTMOp : public OpKernel {
     }
     OP_REQUIRES_OK(ctx, ctx->GetAttr("cell_clip", &cell_clip_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("use_peephole", &use_peephole_));
+    f8_flags_ = ctx->GetFlagsF8();
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -1056,7 +1061,7 @@ class BlockLSTMOp : public OpKernel {
       Tensor h_tensor = slicer.OutputSlice(h_out, t, "h_out");
 
       functor::LSTMBlockCellFprop<Device, T, USE_CUBLAS, gate_layout>(
-          batch_size, input_size, cell_size)(
+          batch_size, input_size, cell_size, f8_flags_)(
           ctx, device, forget_bias_, cell_clip_, use_peephole_,
           x_tensor.matrix<T>(), cs_prev_tensor2.matrix<T>(),
           h_prev_tensor2.matrix<T>(), w_tensor->matrix<T>(),
@@ -1086,6 +1091,7 @@ class BlockLSTMOp : public OpKernel {
   float forget_bias_;
   float cell_clip_;
   bool use_peephole_;
+  int f8_flags_;
 };
 
 #define REGISTER_KERNEL(T)                                           \
@@ -1142,6 +1148,7 @@ class BlockLSTMGradOp : public OpKernel {
  public:
   explicit BlockLSTMGradOp(OpKernelConstruction* ctx) : OpKernel(ctx) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("use_peephole", &use_peephole_));
+    f8_flags_ = ctx->GetFlagsF8();
   }
 
   void Compute(OpKernelContext* ctx) override {
@@ -1368,7 +1375,7 @@ class BlockLSTMGradOp : public OpKernel {
 
       Tensor x_grad_tensor = slicer.OutputSlice(x_grad, t, "x_grad");
       functor::BlockLSTMBprop<Device, T, USE_CUBLAS, gate_layout>(
-          batch_size, input_size, cell_size)(
+          batch_size, input_size, cell_size, f8_flags_)(
           ctx, device, use_peephole_, x_tensor.matrix<T>(),
           cs_prev_tensor2.matrix<T>(), h_prev_tensor2.matrix<T>(),
           w_tensor->matrix<T>(), wci_tensor->vec<T>(), wcf_tensor->vec<T>(),
@@ -1395,6 +1402,7 @@ class BlockLSTMGradOp : public OpKernel {
 
  private:
   bool use_peephole_;
+  int f8_flags_;
 };
 
 #define REGISTER_KERNEL(T)                                               \

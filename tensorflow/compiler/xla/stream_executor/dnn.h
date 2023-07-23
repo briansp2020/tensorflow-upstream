@@ -671,6 +671,7 @@ class ConvolutionDescriptor {
     proto_.set_name(name);
     return *this;
   }
+  ConvolutionDescriptor& set_grad_flags(int g) { proto_.set_grad_flags(g); return *this; }
   int64_t zero_padding_height() const { return GetDim(padding(), DimIndex::Y); }
   int64_t zero_padding_width() const { return GetDim(padding(), DimIndex::X); }
   int64_t vertical_filter_stride() const {
@@ -697,6 +698,7 @@ class ConvolutionDescriptor {
   bool convolution_not_crosscorr() const {
     return proto_.convolution_mode() == ConvolutionMode::CONVOLUTION;
   }
+  int grad_flags() const { return proto_.grad_flags(); }
 
   absl::Span<const int64_t> strides() const {
     return AsInt64Slice(proto_.strides());

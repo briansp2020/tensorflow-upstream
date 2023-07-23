@@ -161,6 +161,7 @@ void LaunchConv2DBackpropInputOpGpuImpl(
 
     se::blas::GemmCall call(transpose, no_transpose, n, m, k, 
       b_ptr, k, a_ptr, k, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet | se::blas::CallContext::kGradient2;
     OP_REQUIRES_OK(ctx, stream->ThenBlasGemm(call));
     return;
   } else if (dims.spatial_dims[0].filter_size ==
@@ -188,6 +189,7 @@ void LaunchConv2DBackpropInputOpGpuImpl(
 
     se::blas::GemmCall call(transpose, no_transpose, n, m, k, 
        b_ptr, k, a_ptr, k, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet | se::blas::CallContext::kGradient2;
     OP_REQUIRES_OK(ctx, stream->ThenBlasGemm(call));
     return;
   }

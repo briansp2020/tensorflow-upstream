@@ -58,7 +58,7 @@ class MatrixSolveOp : public XlaOpKernel {
 
     xla::XlaOp output =
         xla::BatchDot(inv, adjoint_, rhs,
-                      /*transpose_y=*/false, xla::PrecisionConfig::HIGHEST);
+                      /*transpose_y=*/false, xla::PrecisionConfigHIGHEST());
     ctx->SetOutput(0, output);
   }
 

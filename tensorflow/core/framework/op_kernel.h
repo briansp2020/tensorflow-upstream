@@ -57,6 +57,7 @@ limitations under the License.
 #include "tensorflow/core/platform/thread_annotations.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/protobuf/config.pb.h"
+#include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/managed_stack_trace.h"
 
 // Used to match ops to kernel sources (and eventually to kernel targets)
@@ -349,6 +350,16 @@ class OpKernelConstruction {
   // on Device::MakeTensorFromProto for longer-term replacement
   // ideas.
   DeviceBase* device() const { return device_; }
+
+  inline int GetFlagsF8() const {
+    bool f8_op = false;
+    int64_t f8_global = 0;
+    tsl::Status status = ReadInt64FromEnvVar("TF_ROCM_F8", 0, &f8_global);
+    status = GetAttr("_f8", &f8_op);
+    int flags = (f8_op || f8_global) ? 4 : 0;
+    return flags | 256;
+  }
+
 
  private:
   const DeviceType device_type_;

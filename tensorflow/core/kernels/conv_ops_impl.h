@@ -487,6 +487,7 @@ void LaunchConv2DOpImpl(OpKernelContext* ctx, bool use_cudnn,
     auto no_transpose = se::blas::Transpose::kNoTranspose;
     se::blas::GemmCall call(no_transpose, no_transpose, n, m, k, b_ptr, n,
                                   a_ptr, k, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet;
     OP_REQUIRES_OK(ctx, stream->ThenBlasGemm(call));
     return;
   } else if (patch_rows == in_rows && patch_cols == in_cols &&
@@ -509,6 +510,7 @@ void LaunchConv2DOpImpl(OpKernelContext* ctx, bool use_cudnn,
     auto no_transpose = se::blas::Transpose::kNoTranspose;
     se::blas::GemmCall call(no_transpose, no_transpose, n, m, k, b_ptr, n,
                                   a_ptr, k, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet;
     OP_REQUIRES_OK(ctx, stream->ThenBlasGemm(call));
     return;
   }

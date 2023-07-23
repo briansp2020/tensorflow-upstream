@@ -39,11 +39,13 @@ class XlaSvdOp : public XlaOpKernel {
     if (precision_config_.operand_precision_size() == 0) {
       precision_config_.mutable_operand_precision()->Add(
           xla::PrecisionConfig::HIGHEST);
+      precision_config_.mutable_operand_precision()->Add(
+          xla::PrecisionConfig::HIGHEST);
     }
   }
   void Compile(XlaOpKernelContext* ctx) override {
     auto result = xla::SVD(ctx->Input(0), max_iter_, epsilon_,
-                           precision_config_.operand_precision(0));
+                           precision_config_);
     ctx->SetOutput(0, result.d);
     ctx->SetOutput(1, result.u);
     ctx->SetOutput(2, result.v);

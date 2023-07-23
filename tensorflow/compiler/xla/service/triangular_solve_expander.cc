@@ -127,7 +127,7 @@ XlaOp DiagonalBlocks(XlaOp a, int64_t block_size) {
 XlaOp SolveWithInvertedDiagonalBlocks(XlaOp a, XlaOp b, XlaOp inv_diag_blocks,
                                       bool left_side, bool lower,
                                       bool transpose_a, bool conjugate_a,
-                                      PrecisionConfig::Precision precision) {
+                                      PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     TF_ASSIGN_OR_RETURN(Shape blocks_shape, builder->GetShape(inv_diag_blocks));
@@ -236,7 +236,7 @@ XlaOp SolveWithInvertedDiagonalBlocks(XlaOp a, XlaOp b, XlaOp inv_diag_blocks,
 
 XlaOp TriangularSolveExpander::InvertDiagonalBlocks(
     XlaOp diag_blocks, bool lower_triangular,
-    PrecisionConfig::Precision precision) {
+    PrecisionConfig precision) {
   XlaBuilder* builder = diag_blocks.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     // Input is a batch of square lower triangular square matrices. Its shape is
@@ -336,10 +336,7 @@ XlaOp TriangularSolveExpander::InvertDiagonalBlocks(
       dnums.add_rhs_batch_dimensions(0);
       dnums.add_lhs_contracting_dimensions(2);
       dnums.add_rhs_contracting_dimensions(1);
-      PrecisionConfig precision_proto;
-      precision_proto.add_operand_precision(precision);
-      precision_proto.add_operand_precision(precision);
-      auto update = -DotGeneral(input_row, body_out, dnums, &precision_proto);
+      auto update = -DotGeneral(input_row, body_out, dnums, &precision);
 
       body_out = DynamicUpdateSlice(body_out, update, {zero, j, zero});
 
@@ -364,7 +361,7 @@ XlaOp TriangularSolveExpander::InvertDiagonalBlocks(
 XlaOp TriangularSolveExpander::SolveByInvertingDiagonalBlocks(
     XlaOp a, XlaOp b, bool left_side, bool lower, bool transpose_a,
     bool conjugate_a, bool unit_diagonal,
-    PrecisionConfig::Precision precision) {
+    PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
@@ -408,7 +405,7 @@ XlaOp TriangularSolveExpander::SolveByInvertingDiagonalBlocks(
 XlaOp TriangularSolveExpander::SolveDirectly(
     XlaOp a, XlaOp b, bool left_side, bool lower, bool transpose_a,
     bool conjugate_a, bool unit_diagonal,
-    PrecisionConfig::Precision precision) {
+    PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
@@ -465,7 +462,7 @@ XlaOp TriangularSolveExpander::SolveDirectly(
 XlaOp TriangularSolveExpander::BuildTriangularSolve(
     XlaOp a, XlaOp b, bool left_side, bool lower, bool transpose_a,
     bool conjugate_a, bool unit_diagonal, int64_t block_size,
-    PrecisionConfig::Precision precision) {
+    PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   return builder->ReportErrorOrReturn([&]() -> StatusOr<XlaOp> {
     TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
@@ -589,7 +586,7 @@ StatusOr<HloInstruction*> TriangularSolveExpander::ExpandInstruction(
     BuildTriangularSolve(a, b, options.left_side(), options.lower(),
                          transpose_a, conjugate_a, options.unit_diagonal(),
                          /*block_size=*/block_size_,
-                         /*precision=*/PrecisionConfig::HIGHEST);
+                         /*precision=*/PrecisionConfigHIGHEST());
     TF_ASSIGN_OR_RETURN(XlaComputation xla_computation, builder.Build());
 
     TF_ASSIGN_OR_RETURN(ProgramShape program_shape,

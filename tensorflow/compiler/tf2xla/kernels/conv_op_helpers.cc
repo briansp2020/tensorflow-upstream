@@ -209,7 +209,9 @@ StatusOr<ConvOpAttrs> ConvOpAttrs::Create(int num_spatial_dims, bool depthwise,
 StatusOr<xla::XlaOp> MakeXlaForwardConvOp(StringPiece /*type_string*/,
                                           xla::XlaOp conv_input,
                                           xla::XlaOp filter,
-                                          const ConvOpAttrs& attrs) {
+                                          const ConvOpAttrs& attrs,
+                                          int grad_flags) {
+  printf("MakeXlaForwardConvOp\n");
   TF_RETURN_IF_ERROR(CheckConvAttrs(attrs));
 
   auto* builder = conv_input.builder();
@@ -298,21 +300,26 @@ StatusOr<xla::XlaOp> MakeXlaForwardConvOp(StringPiece /*type_string*/,
         &padding[i].first, &padding[i].second));
   }
   xla::PrecisionConfig precision_config = GetPrecisionConfig();
+  SetXlaPrecisionConfigF8Flags(precision_config, grad_flags, grad_flags & 1, grad_flags & 2);
 
   if (padding_type != xla::PaddingType::PADDING_INVALID) {
-    return xla::DynamicConvForward(
+    auto retval = xla::DynamicConvForward(
         conv_input, filter, window_strides, padding, lhs_dilation, rhs_dilation,
         dims,
         /*feature_group_count=*/attrs.depthwise ? in_depth
                                                 : feature_group_count,
         /*batch_group_count=*/1, &precision_config, padding_type);
+    tsl::Status status = builder->SetInstructionFrontendAttribute(retval, "grad_flags", std::to_string(grad_flags));
+    return retval;
   }
 
-  return xla::ConvGeneralDilated(
+  auto retval = xla::ConvGeneralDilated(
       conv_input, filter, window_strides, padding, lhs_dilation, rhs_dilation,
       dims,
       /*feature_group_count=*/attrs.depthwise ? in_depth : feature_group_count,
       /*batch_group_count=*/1, &precision_config);
+  tsl::Status status = builder->SetInstructionFrontendAttribute(retval, "grad_flags", std::to_string(grad_flags));
+  return retval;
 }
 
 StatusOr<xla::XlaOp> MakeXlaBackpropInputConvOp(StringPiece type_string,
@@ -320,7 +327,8 @@ StatusOr<xla::XlaOp> MakeXlaBackpropInputConvOp(StringPiece type_string,
                                                 xla::XlaOp filter,
                                                 xla::XlaOp out_backprop,
                                                 const ConvOpAttrs& attrs,
-                                                xla::XlaOp* input_sizes) {
+                                                xla::XlaOp* input_sizes,
+                                                int grad_flags) {
   TF_RETURN_IF_ERROR(CheckConvAttrs(attrs));
 
   int num_dims = attrs.num_spatial_dims + 2;
@@ -391,6 +399,7 @@ StatusOr<xla::XlaOp> MakeXlaBackpropInputConvOp(StringPiece type_string,
     rhs_dilation[i] = attrs.dilations[dim];
   }
   xla::PrecisionConfig precision_config = GetPrecisionConfig();
+  SetXlaPrecisionConfigF8Flags(precision_config, grad_flags, grad_flags & 1, grad_flags & 2);
 
   if (feature_group_count != 1 && !attrs.depthwise) {
     filter = TransposeFilterForGroupConvolutionBackpropInput(
@@ -400,27 +409,32 @@ StatusOr<xla::XlaOp> MakeXlaBackpropInputConvOp(StringPiece type_string,
   filter = xla::Rev(filter, kernel_spatial_dims);
   if (padding_type != xla::PaddingType::PADDING_INVALID) {
     TF_RET_CHECK(input_sizes != nullptr);
-    return xla::DynamicConvInputGrad(
+    auto retval = xla::DynamicConvInputGrad(
         *input_sizes, out_backprop, filter, /*window_strides=*/ones, padding,
         lhs_dilation, rhs_dilation, dnums,
         /*feature_group_count=*/
         feature_group_count,
         /*batch_group_count=*/1, &precision_config, padding_type);
+    tsl::Status status = builder->SetInstructionFrontendAttribute(retval, "grad_flags", std::to_string(grad_flags));
+    return retval;
   }
   // activation gradients
   //   = gradients (with padding and dilation) <conv> mirrored_weights
-  return xla::ConvGeneralDilated(out_backprop, filter, /*window_strides=*/ones,
+  auto retval = xla::ConvGeneralDilated(out_backprop, filter, /*window_strides=*/ones,
                                  padding, lhs_dilation, rhs_dilation, dnums,
                                  /*feature_group_count=*/
                                  feature_group_count,
                                  /*batch_group_count=*/1, &precision_config);
+  tsl::Status status = builder->SetInstructionFrontendAttribute(retval, "grad_flags", std::to_string(grad_flags));
+  return retval;
 }
 
 StatusOr<xla::XlaOp> MakeXlaBackpropFilterConvOp(StringPiece type_string,
                                                  xla::XlaOp activations,
                                                  const xla::Shape& filter_shape,
                                                  xla::XlaOp gradients,
-                                                 const ConvOpAttrs& attrs) {
+                                                 const ConvOpAttrs& attrs,
+                                                 int grad_flags) {
   TF_RETURN_IF_ERROR(CheckConvAttrs(attrs));
 
   auto* builder = activations.builder();
@@ -545,6 +559,7 @@ StatusOr<xla::XlaOp> MakeXlaBackpropFilterConvOp(StringPiece type_string,
     padding[i] = {pad_before, pad_total - pad_before};
   }
   xla::PrecisionConfig precision_config = GetPrecisionConfig();
+  SetXlaPrecisionConfigF8Flags(precision_config, grad_flags, grad_flags & 1, grad_flags & 2);
 
   // Besides padding the input, we will also expand output_rows to
   //    expanded_out_rows = (output_rows - 1) * stride + 1
@@ -572,6 +587,7 @@ StatusOr<xla::XlaOp> MakeXlaBackpropFilterConvOp(StringPiece type_string,
   if (attrs.depthwise) {
     filter_backprop = xla::Reshape(filter_backprop, filter_shape.dimensions());
   }
+  tsl::Status status = builder->SetInstructionFrontendAttribute(filter_backprop, "grad_flags", std::to_string(grad_flags));
 
   return filter_backprop;
 }

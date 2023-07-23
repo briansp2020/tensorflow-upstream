@@ -105,6 +105,8 @@ class GemmOpLowering : public OpRewritePattern<GEMMOp> {
     call->setAttr(b.getStringAttr("alpha_real"), op.getAlphaRealAttr());
     call->setAttr(b.getStringAttr("beta"), op.getBetaAttr());
     call->setAttr(b.getStringAttr("dot_dims"), op.getDotDimensionNumbers());
+    auto f8_attr = op.getF8Flags() ? op.getF8FlagsAttr() : b.getI64IntegerAttr(0);
+    call->setAttr(b.getStringAttr("f8_flags"), f8_attr);
 
     if (auto precisions = op.getPrecisionConfig()) {
       llvm::SmallVector<int32_t> values;

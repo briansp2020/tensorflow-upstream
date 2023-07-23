@@ -733,6 +733,7 @@ void LaunchConvBackpropFilterOpImpl(
     se::blas::GemmCall call(se::blas::Transpose::kNoTranspose,
                                       se::blas::Transpose::kTranspose, n, m, k,
                                       a_ptr, n, b_ptr, m, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet | se::blas::CallContext::kGradient1;
     OP_REQUIRES_OK(context, stream->ThenBlasGemm(call));
     return;
   } else if (!is_grouped_convolution &&
@@ -755,6 +756,7 @@ void LaunchConvBackpropFilterOpImpl(
     se::blas::GemmCall call(se::blas::Transpose::kNoTranspose,
                                       se::blas::Transpose::kTranspose, n, m, k,
                                       b_ptr, n, a_ptr, m, &c_ptr, n);
+    call.context = se::blas::CallContext::kSet | se::blas::CallContext::kGradient1;
     OP_REQUIRES_OK(context, stream->ThenBlasGemm(call));
     return;
   }

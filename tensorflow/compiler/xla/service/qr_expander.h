@@ -34,19 +34,19 @@ class QrExpander : public OpExpanderPass {
       HloInstruction* instruction) override;
 
   virtual StatusOr<QrDecomposition> QrBlock(
-      XlaOp a, PrecisionConfig::Precision precision);
+      XlaOp a, PrecisionConfig precision);
 
   virtual StatusOr<XlaOp> CompactWYRepresentation(
       PrimitiveType type, absl::Span<const int64_t> batch_dims, XlaOp vs,
-      XlaOp taus, int64_t m, int64_t n, PrecisionConfig::Precision precision);
+      XlaOp taus, int64_t m, int64_t n, PrecisionConfig precision);
 
  private:
   StatusOr<XlaOp> BuildQrDecomposition(XlaOp a, int64_t block_size,
-                                       PrecisionConfig::Precision precision);
+                                       PrecisionConfig precision);
 
   StatusOr<XlaOp> ProductOfElementaryHouseholderReflectors(
       XlaOp a, XlaOp taus, int64_t block_size,
-      PrecisionConfig::Precision precision);
+      PrecisionConfig precision);
 
   // Mapping from op signatures to existing computations.
   absl::flat_hash_map<std::string, HloComputation*> computation_cache_;

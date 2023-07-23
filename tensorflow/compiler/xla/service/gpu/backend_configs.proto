@@ -49,6 +49,12 @@ message CudnnConvBackendConfig {
     // compatible with NVidia's IMMA instruction (sm75+).
     bool reordered_int8_nchw_vect = 7;
   }
+
+  // bit 0: input 1 is a gradient
+  // bit 1: input 2 is a gradient
+  // bit 2: F8 is requested
+  // bit 8: initialized
+  int64 f8_conv_backend_flags = 8;
 }
 
 // Backend config for the GEMM operation running through cuBLAS.
@@ -82,6 +88,8 @@ message GemmBackendConfig {
   }
 
   Epilogue epilogue = 13;
+
+//  int64 f8_gemm_backend_flags = 14;
 }
 
 // Backend config for bitcast operation generated from MLIR MHLO dialect.

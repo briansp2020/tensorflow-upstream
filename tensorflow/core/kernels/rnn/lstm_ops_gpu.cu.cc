@@ -236,7 +236,7 @@ void LSTMBlockCellFpropWithCUDA(
     typename TTypes<T>::Matrix o, typename TTypes<T>::Matrix ci,
     typename TTypes<T>::Matrix co, typename TTypes<T>::Matrix gates,
     typename TTypes<T>::Matrix h, int batch_size, int cell_size,
-    int input_size) {
+    int input_size, int f8) {
   const auto& cu_stream = GetGpuStream(ctx);
 
   // Concatenate xh = [x, h].
@@ -255,7 +255,7 @@ void LSTMBlockCellFpropWithCUDA(
   typename TTypes<T>::ConstMatrix const_xh(xh.data(), xh.dimensions());
   TensorBlasGemm<GPUDevice, T, true /* USE_CUBLAS */>::compute(
       ctx, d, false, false, typename gemm_compute_type<T>::type(1.f), const_xh,
-      w, typename gemm_compute_type<T>::type(0.f), gates);
+      w, typename gemm_compute_type<T>::type(0.f), gates, f8);
 
   // Add bias, apply non-linearities and gating.
   //
@@ -427,7 +427,7 @@ void LSTMBlockCellBpropWithCUDA(
     LSTMBlockCellFpropWithCUDA<T, GATE_LAYOUT>(                               \
         ctx, d, forget_bias, cell_clip, use_peephole, x, cs_prev, h_prev, w,  \
         wci, wcf, wco, b, xh, i, cs, f, o, ci, co, gates, h, batch_size_,     \
-        cell_size_, input_size_);                                             \
+        cell_size_, input_size_, f8_);                                        \
   }                                                                           \
   template <>                                                                 \
   void LSTMBlockCellBprop<GPUDevice, T, true /* USE_CUBLAS */, GATE_LAYOUT>:: \

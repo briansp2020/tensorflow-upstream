@@ -26,6 +26,8 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.pb.h"
 
+using xla::PrecisionConfig;
+
 namespace tensorflow {
 namespace {
 
@@ -45,6 +47,11 @@ class XlaDotOp : public XlaOpKernel {
         precision_config_.ParsePartialFromString(precision_config_attr),
         errors::InvalidArgument("Error parsing convolution dimension numbers"));
     preferred_element_type_ = std::nullopt;
+    bool grad_a = false, grad_b = false;
+    OP_REQUIRES_OK(context, context->GetAttr("grad_a", &grad_a));
+    OP_REQUIRES_OK(context, context->GetAttr("grad_b", &grad_b));
+    // TODO: what's inside precision_config by default?
+    SetXlaPrecisionConfigF8Flags(precision_config_, context->GetFlagsF8(), grad_a, grad_b);
   }
 
   void Compile(XlaOpKernelContext* context) override {

@@ -127,11 +127,15 @@ class ROCMBlas : public blas::BlasSupport {
     const blas::GemmCall& call);
   tsl::Status DoBlasGemmInternalEx(Stream *stream, 
     const blas::GemmCall& call, rocblas_datatype dt);
+  tsl::Status DoBlasGemmInternalEx2(Stream* stream, 
+    const blas::GemmCall& call);
   template <typename T, typename U, typename V>
   tsl::Status DoBlasGemmStridedInternalNonEx(Stream *stream, V fun,
     const blas::GemmCall& call);
   tsl::Status DoBlasGemmStridedInternalEx(Stream *stream,
     const blas::GemmCall& call, rocblas_datatype dt);
+  tsl::Status DoBlasGemmStridedInternalEx2(Stream* stream,
+    const blas::GemmCall& call);
   // Convenience functions that call DoBlasInternalImpl with different values
   // for err_on_failure.
   template <typename FuncT, typename... Args>

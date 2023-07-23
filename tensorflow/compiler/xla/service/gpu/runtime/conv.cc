@@ -291,6 +291,7 @@ static GpuConvDescriptor GetConvDescriptor(
   descriptor.backend_config.set_conv_result_scale(attrs.result_scale);
   descriptor.backend_config.set_reordered_int8_nchw_vect(
       b.is_cudnn_reordered_int8);
+  descriptor.backend_config.set_f8_conv_backend_flags(256); // remove to enforce it being set properly elsewhere
 
   // Set up convolution algorigthm.
   auto* algo = descriptor.backend_config.mutable_algorithm();

@@ -106,7 +106,8 @@ static absl::Status GemmImpl(const ServiceExecutableRunOptions* run_options,
                              int64_t algorithm, double alpha_real,
                              double alpha_imag, double beta,
                              DotDimensionNumbers dot_dims,
-                             absl::Span<const int32_t> precision) {
+                             absl::Span<const int32_t> precision,
+                             int64_t f8_flags) {
   se::DeviceMemoryBase lhs_data = GetDeviceAddress(lhs);
   se::DeviceMemoryBase rhs_data = GetDeviceAddress(rhs);
   se::DeviceMemoryBase output_data = GetDeviceAddress(out);
@@ -143,7 +144,8 @@ static absl::Status GemmImpl(const ServiceExecutableRunOptions* run_options,
 #endif
   }
 
-  return RunGemm(*gemm_config, lhs_data, rhs_data, output_data, stream);
+  return RunGemm(*gemm_config, lhs_data, rhs_data, output_data, stream,
+    std::nullopt, f8_flags);
 }
 
 XLA_RUNTIME_DEFINE_CUSTOM_CALL(
@@ -161,7 +163,8 @@ XLA_RUNTIME_DEFINE_CUSTOM_CALL(
         .Attr<double>("alpha_imag")
         .Attr<double>("beta")
         .Attr<DotDimensionNumbers>("dot_dims")
-        .Attr<absl::Span<const int32_t>>("precision"));
+        .Attr<absl::Span<const int32_t>>("precision")
+        .Attr<int64_t>("f8_flags"));
 
 void RegisterGemmCustomCalls(runtime::DirectCustomCallRegistry& registry) {
   registry.Register("xla.gpu.gemm", Gemm);

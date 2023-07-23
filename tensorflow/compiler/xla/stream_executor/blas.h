@@ -194,11 +194,19 @@ constexpr ComputePrecision kDefaultComputePrecision = 0;
 // library, so that it can pick the efficient imlpementation based on context
 enum class CallContext {
   kNone = 0,            // No information
-  kForward = 1,         // call happens in "forward" pass
-  kBackpropInput1 = 2,  // call happens in "backprop" pass for the first input
-  kBackpropInput2 = 4,  // call happens in "backprop" pass for the second input
+  kGradient1 = 1,
+  kGradient2 = 2,
+  kEnableF8 = 4,
+  kSet = 256
 };
 
+inline CallContext operator|(CallContext a, CallContext b) {
+  return static_cast<CallContext>(static_cast<int>(a) | static_cast<int>(b));
+}
+
+inline bool operator&(CallContext a, CallContext b) {
+  return static_cast<int>(a) & static_cast<int>(b);
+}
 
 template <class T>
 struct GemmCallAlpha
@@ -238,6 +246,7 @@ struct GemmCall {
   int64_t stride_b = -1;
   int64_t stride_c = -1;
   int batch_count = 1;
+  CallContext context = CallContext::kNone;
   ComputationType type = ComputationType::kUndefined;
   ComputePrecision precision = kDefaultComputePrecision;
   ProfileResult *output_profile_result = 0;

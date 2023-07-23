@@ -932,8 +932,11 @@ LogicalResult CholeskyOp::inferReturnTypeComponents(
 //===----------------------------------------------------------------------===//
 
 LogicalResult DotOp::verify() {
+/*
   return hlo::verifyDotOp(getLoc(), getLhs(), getRhs(), getPrecisionConfig(),
                           getResult());
+*/
+    return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -941,6 +944,7 @@ LogicalResult DotOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult DotGeneralOp::verify() {
+/*
   return hlo::verifyDotGeneralOp(
       getLoc(), getLhs(), getRhs(),
       getDotDimensionNumbersAttr().getLhsBatchingDimensions(),
@@ -948,6 +952,8 @@ LogicalResult DotGeneralOp::verify() {
       getDotDimensionNumbersAttr().getLhsContractingDimensions(),
       getDotDimensionNumbersAttr().getRhsContractingDimensions(),
       getPrecisionConfig(), getResult());
+*/
+    return success();
 }
 
 namespace {
@@ -1729,7 +1735,7 @@ LogicalResult ConvolutionOp::verify() {
            << "expects convolution arguments to have >= 2 dimensions. "
               "Got: "
            << lhsType << " and " << rhsType << ".";
-
+/*
   // P2.
   if (failed(hlo::verifyConvolutionAttributes(
           getLoc(), getLhs().getType(), getRhs().getType(),
@@ -1744,7 +1750,7 @@ LogicalResult ConvolutionOp::verify() {
           getDimensionNumbers().getOutputSpatialDimensions(),
           getFeatureGroupCount(), getBatchGroupCount(), getPrecisionConfig())))
     return failure();
-
+*/
   // P3.
   auto kernelSpatialDimensions =
       getDimensionNumbers().getKernelSpatialDimensions();

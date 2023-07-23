@@ -101,10 +101,10 @@ Status FoldTransposeIntoDot(InstructionOperandsPair& pair) {
       rhs = rhs->mutable_operand(0);
     }
   }
-
-  return dot->parent()->ReplaceWithNewInstruction(
-      dot, HloInstruction::CreateDot(dot->shape(), lhs, rhs, new_dot_dims,
-                                     dot->precision_config()));
+  auto new_dot = HloInstruction::CreateDot(dot->shape(), lhs, rhs, new_dot_dims,
+                                     dot->precision_config());
+  new_dot->add_frontend_attributes(dot->frontend_attributes());
+  return dot->parent()->ReplaceWithNewInstruction(dot, std::move(new_dot));
 }
 
 // Folds the operands of `convolution` that are foldable transposes.
@@ -173,6 +173,7 @@ bool FoldTransposeIntoConvolution(InstructionOperandsPair& pair) {
       convolution.shape(), new_lhs, new_rhs, convolution.feature_group_count(),
       convolution.batch_group_count(), convolution.window(), new_dnums,
       convolution.precision_config());
+  new_conv->add_frontend_attributes(convolution.frontend_attributes());
   TF_CHECK_OK(convolution.parent()->ReplaceWithNewInstruction(
       &convolution, std::move(new_conv)));
 

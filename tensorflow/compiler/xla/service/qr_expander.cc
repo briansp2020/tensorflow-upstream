@@ -197,7 +197,7 @@ Status House(XlaOp x, XlaOp k, absl::Span<const int64_t> batch_dims,
 //     taus[j] = tau
 //   return (a, taus)
 StatusOr<QrDecomposition> QrExpander::QrBlock(
-    XlaOp a, PrecisionConfig::Precision precision) {
+    XlaOp a, PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int num_dims = a_shape.rank();
@@ -317,7 +317,7 @@ StatusOr<QrDecomposition> QrExpander::QrBlock(
 //   return t
 StatusOr<XlaOp> QrExpander::CompactWYRepresentation(
     PrimitiveType type, absl::Span<const int64_t> batch_dims, XlaOp vs,
-    XlaOp taus, int64_t m, int64_t n, PrecisionConfig::Precision precision) {
+    XlaOp taus, int64_t m, int64_t n, PrecisionConfig precision) {
   XlaBuilder* builder = vs.builder();
 
   std::vector<int64_t> batch_dim_indices(batch_dims.size());
@@ -371,7 +371,7 @@ StatusOr<XlaOp> QrExpander::CompactWYRepresentation(
 //     q[:, i:] += (q[:, i:] @ y) @ np.conj((y @ np.conj(t.T)).T)
 //   return (q, a)
 StatusOr<XlaOp> QrExpander::BuildQrDecomposition(
-    XlaOp a, int64_t block_size, PrecisionConfig::Precision precision) {
+    XlaOp a, int64_t block_size, PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   const int num_dims = a_shape.rank();
@@ -435,7 +435,7 @@ StatusOr<XlaOp> QrExpander::BuildQrDecomposition(
 
 StatusOr<XlaOp> QrExpander::ProductOfElementaryHouseholderReflectors(
     XlaOp a, XlaOp taus, int64_t block_size,
-    PrecisionConfig::Precision precision) {
+    PrecisionConfig precision) {
   XlaBuilder* builder = a.builder();
   TF_ASSIGN_OR_RETURN(Shape a_shape, builder->GetShape(a));
   TF_ASSIGN_OR_RETURN(Shape taus_shape, builder->GetShape(taus));
@@ -535,14 +535,14 @@ StatusOr<HloInstruction*> QrExpander::ExpandInstruction(
       TF_ASSIGN_OR_RETURN(
           result, BuildQrDecomposition(a,
                                        /*block_size=*/128,
-                                       /*precision=*/PrecisionConfig::HIGHEST));
+                                       /*precision=*/PrecisionConfigHIGHEST()));
     } else {
       TF_RET_CHECK(instruction->operand_count() == 2);
       XlaOp taus =
           Parameter(&builder, 1, instruction->operand(1)->shape(), "taus");
       TF_ASSIGN_OR_RETURN(result, ProductOfElementaryHouseholderReflectors(
                                       a, taus, /*block_size=*/128,
-                                      /*precision=*/PrecisionConfig::HIGHEST));
+                                      /*precision=*/PrecisionConfigHIGHEST()));
     }
 
     TF_ASSIGN_OR_RETURN(XlaComputation xla_computation, builder.Build(result));

@@ -422,13 +422,55 @@ class GemmRewriterVisitor : public DfsHloRewriteVisitor {
     TF_ASSIGN_OR_RETURN(
         absl::string_view gemm_custom_call_target,
         GetNonFp8GemmCustomCallTarget(*instr, gemm_backend_config));
+
+//    int f8_flags = 0;
+    HloDotInstruction* dot = dynamic_cast<HloDotInstruction*>(instr);
+    const PrecisionConfig& cfg = dot->precision_config();
+//    int prec_f8_flags = GetXlaPrecisionConfigF8Flags(&cfg);
+
     const Shape &output_shape = instr->shape();
     HloInstruction *gemm_call =
         instr->AddInstruction(HloInstruction::CreateCustomCall(
             output_shape,
             {instr->mutable_operand(0), instr->mutable_operand(1)},
             gemm_custom_call_target));
+
+    auto existing_config =
+        gemm_call->backend_config<GemmBackendConfig>().value();
+/*
+    if(!(existing_config.f8_gemm_backend_flags() & 256)) {
+	printf("No f8_gemm_backend_flags in GemmRewriter\n");
+        fflush(stdout);
+	throw "No f8_gemm_backend_flags in GemmRewriter\n";
+    }
+*/
+//    gemm_backend_config.set_f8_gemm_backend_flags(prec_f8_flags);
+    printf("GemmRewriterVisitor: create a CustomCall %p\n", gemm_call);
+    xla::PrecisionConfig* backend_cfg = existing_config.mutable_precision_config();
+    int f8_flags = GetXlaPrecisionConfigF8Flags(&cfg);
+    int backend_f8_flags = GetXlaPrecisionConfigF8Flags(backend_cfg);
+    printf("Dot f8 flags: %d\n", f8_flags);
+    printf("Backend config f8 flags: %d\n", backend_f8_flags);
+
+    if(!(backend_f8_flags & 256)) {
+      SetXlaPrecisionConfigF8Flags(*gemm_backend_config.mutable_precision_config(), f8_flags);
+      printf("After setting:\n");
+      PrintXlaPrecisionConfigF8Flags(gemm_backend_config.mutable_precision_config());
+    }
+
     TF_RETURN_IF_ERROR(gemm_call->set_backend_config(gemm_backend_config));
+    {
+      const xla::PrecisionConfig& cfg = gemm_call->precision_config();
+      int flags2_1 = GetXlaPrecisionConfigF8Flags(&cfg); 
+
+      TF_ASSIGN_OR_RETURN(auto const config, gemm_call->backend_config<xla::gpu::GemmBackendConfig>());
+      const xla::PrecisionConfig& cfg2 = config.precision_config();
+      int flags2_2 = GetXlaPrecisionConfigF8Flags(&cfg2); 
+      printf("Updated flags: %d %d\n", flags2_1, flags2_2);
+      PrintXlaPrecisionConfigF8Flags(&cfg);
+      PrintXlaPrecisionConfigF8Flags(&cfg2);
+    }
+
     TF_RETURN_IF_ERROR(ReplaceInstruction(instr, gemm_call));
     return OkStatus();
   }

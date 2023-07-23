@@ -158,6 +158,7 @@ class ExtractImagePatchesOp : public XlaOpKernel {
     xla::XlaOp conv =
         xla::ConvGeneralDilated(ctx->Input(0), filter, window_strides, padding,
                                 lhs_dilation, rhs_dilation, dims, depth);
+    tsl::Status status = builder->SetInstructionFrontendAttribute(conv, "grad_flags", "256");
     // Feature group convolution, will end up with the kernel_size change more
     // rapidly than the depth. Reshape, transpose and reshape to reorder them.
     std::vector<int64_t> conv_dims =

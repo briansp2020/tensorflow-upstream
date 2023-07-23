@@ -49,17 +49,20 @@ class ConvOp : public XlaOpKernel {
         ConvOpAttrs::Create(num_spatial_dims, depthwise, ctx);
     OP_REQUIRES_OK(ctx, attrs.status());
     attrs_ = attrs.value();
+    grad_flags_ = ctx->GetFlagsF8() | 256;
   }
 
   void Compile(XlaOpKernelContext* ctx) override {
     StatusOr<xla::XlaOp> conv = MakeXlaForwardConvOp(
-        ctx->op_kernel().type_string(), ctx->Input(0), ctx->Input(1), attrs_);
+        ctx->op_kernel().type_string(), ctx->Input(0), ctx->Input(1), attrs_,
+        grad_flags_);
     OP_REQUIRES_OK(ctx, conv.status());
     ctx->SetOutput(0, conv.value());
   }
 
  protected:
   ConvOpAttrs attrs_;
+  int grad_flags_;
 
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ConvOp);
@@ -96,6 +99,7 @@ class ConvBackpropInputOp : public XlaOpKernel {
         ConvOpAttrs::Create(num_spatial_dims, depthwise, ctx);
     OP_REQUIRES_OK(ctx, attrs.status());
     attrs_ = attrs.value();
+    grad_flags_ = ctx->GetFlagsF8()|256|1;
   }
 
   void Compile(XlaOpKernelContext* ctx) override {
@@ -113,13 +117,14 @@ class ConvBackpropInputOp : public XlaOpKernel {
     xla::XlaOp input_sizes = ctx->Input(0);
     StatusOr<xla::XlaOp> in_backprop = MakeXlaBackpropInputConvOp(
         ctx->op_kernel().type_string(), input_shape, ctx->Input(1),
-        ctx->Input(2), attrs_, &input_sizes);
+        ctx->Input(2), attrs_, &input_sizes, grad_flags_);
     OP_REQUIRES_OK(ctx, in_backprop.status());
     ctx->SetOutput(0, in_backprop.value());
   }
 
  protected:
   ConvOpAttrs attrs_;
+  int grad_flags_;
 
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ConvBackpropInputOp);
@@ -161,6 +166,7 @@ class ConvBackpropFilterOp : public XlaOpKernel {
         ConvOpAttrs::Create(num_spatial_dims, depthwise, ctx);
     OP_REQUIRES_OK(ctx, attrs.status());
     attrs_ = attrs.value();
+    grad_flags_ = ctx->GetFlagsF8()|256|1;
   }
 
   void Compile(XlaOpKernelContext* ctx) override {
@@ -173,13 +179,14 @@ class ConvBackpropFilterOp : public XlaOpKernel {
 
     StatusOr<xla::XlaOp> filter_backprop = MakeXlaBackpropFilterConvOp(
         ctx->op_kernel().type_string(), ctx->Input(0), filter_shape,
-        ctx->Input(2), attrs_);
+        ctx->Input(2), attrs_, grad_flags_);
     OP_REQUIRES_OK(ctx, filter_backprop.status());
     ctx->SetOutput(0, filter_backprop.value());
   }
 
  protected:
   ConvOpAttrs attrs_;
+  int grad_flags_;
 
  private:
   TF_DISALLOW_COPY_AND_ASSIGN(ConvBackpropFilterOp);

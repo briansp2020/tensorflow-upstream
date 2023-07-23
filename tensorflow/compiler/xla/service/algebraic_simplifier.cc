@@ -307,9 +307,13 @@ bool IsConvertPairNoOp(const HloInstruction* convert) {
 }
 
 PrecisionConfig SwapOperandsInDotPrecisionConfig(PrecisionConfig config) {
-  CHECK_EQ(config.operand_precision_size(), 2);
+  CHECK(config.operand_precision_size() == 2 
+    || config.operand_precision_size() == 4);
   std::swap(config.mutable_operand_precision()->at(0),
             config.mutable_operand_precision()->at(1));
+  if(config.operand_precision_size() == 4)
+      std::swap(config.mutable_operand_precision()->at(2),
+            config.mutable_operand_precision()->at(3));
   return config;
 }
 
@@ -7220,9 +7224,18 @@ StatusOr<bool> AlgebraicSimplifierVisitor::SimplifyConvToDot(
   DotDimensionNumbers dot_dimension_numbers;
   dot_dimension_numbers.add_lhs_contracting_dimensions(1);
   dot_dimension_numbers.add_rhs_contracting_dimensions(0);
+
+  auto cfg = convolution->precision_config();
+  int flags = GetXlaPrecisionConfigF8Flags(&cfg);
+  if(!(flags & 256))
+  {
+     printf("Uninitialized precision config in AlgebraicSimplifier::ConvToDot\n");
+     exit(-1);
+  }
+
   auto dot = convolution->AddInstruction(HloInstruction::CreateDot(
       dot_output_shape, new_lhs, new_rhs, dot_dimension_numbers,
-      convolution->precision_config()));
+      cfg));
 
   TF_RETURN_IF_ERROR(
       ReplaceInstruction(convolution, add_bitcast(convolution_shape, dot)));

@@ -1642,6 +1642,11 @@ StatusOr<XlaOp> XlaBuilder::DotGeneralInternal(
   if (precision_config != nullptr) {
     *instr.mutable_precision_config() = *precision_config;
   }
+  printf("DotGeneralInternal()\n");
+  if(!(GetXlaPrecisionConfigF8Flags(instr.mutable_precision_config()) & 256)) {
+    printf("DotGeneralInternal: WARNING: attempting to create a dot without f8 tags (received pointer %p)\n", precision_config);
+    SetXlaPrecisionConfigF8Flags(*instr.mutable_precision_config(), 0, false, false);
+  }
   return AddInstruction(std::move(instr), HloOpcode::kDot, {lhs, rhs});
 }
 
@@ -1843,8 +1848,11 @@ StatusOr<HloInstructionProto> XlaBuilder::DynamicConvInstruction(
   instr.set_feature_group_count(feature_group_count);
   instr.set_batch_group_count(batch_group_count);
   instr.set_padding_type(padding_type);
+  printf("DynamicConvInstruction, precision_config %p\n", precision_config);
 
   if (precision_config != nullptr) {
+    int f8_flags = GetXlaPrecisionConfigF8Flags(precision_config);
+    printf("F8 flags: %d\n", f8_flags);
     *instr.mutable_precision_config() = *precision_config;
   }
   return std::move(instr);
@@ -1934,6 +1942,7 @@ StatusOr<XlaOp> XlaBuilder::ConvGeneralDilatedInternal(
     const ConvolutionDimensionNumbers& dimension_numbers,
     int64_t feature_group_count, int64_t batch_group_count,
     const PrecisionConfig* precision_config) {
+  printf("ConvGeneralDilatedInternal\n");
   HloInstructionProto instr;
   *instr.mutable_shape() = shape.ToProto();
 
@@ -1944,6 +1953,14 @@ StatusOr<XlaOp> XlaBuilder::ConvGeneralDilatedInternal(
 
   if (precision_config != nullptr) {
     *instr.mutable_precision_config() = *precision_config;
+    int f8_flags = GetXlaPrecisionConfigF8Flags(precision_config);
+    printf("Precision config %p: %d\n", precision_config, f8_flags);
+  } else {
+    printf("Precision config null\n");
+    PrecisionConfig precision;
+    precision.add_operand_precision(PrecisionConfig::F8OFF);
+    precision.add_operand_precision(PrecisionConfig::F8OFF);
+    *instr.mutable_precision_config() = precision;
   }
 
   return AddInstruction(std::move(instr), HloOpcode::kConvolution, {lhs, rhs});

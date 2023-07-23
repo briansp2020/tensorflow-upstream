@@ -881,6 +881,15 @@ void SetMatmulAttributes(OpT op, const xla::gpu::GemmBackendConfig& config,
   }
   op.setPrecisionConfigAttr(
       xla::ConvertPrecisionConfig(&config.precision_config(), &builder));
+
+  const xla::PrecisionConfig& prec = config.precision_config();
+  int prec_f8_flags = GetXlaPrecisionConfigF8Flags(&prec); 
+  if(!(prec_f8_flags & 256)) {
+    printf("F8 flags not found in PrecisionConfig in SetMatmulAttributes\n");
+    fflush(stdout);
+    throw ("F8 flags not found in PrecisionConfig in SetMatmulAttributes\n");
+  }
+  op.setF8FlagsAttr(builder.getI64IntegerAttr(prec_f8_flags));
 }
 
 tsl::StatusOr<lmhlo_gpu::CublasLtMatmulEpilogue> AsLhloEpilogue(
@@ -920,6 +929,15 @@ tsl::StatusOr<Operation*> LhloDialectEmitter::EmitGemm(
   } else if (custom_call->operand_count() != 3) {
     return xla::InvalidArgument("GEMM custom call should have 2 or 3 operands");
   }
+
+  printf("EmitGemm(HloCustomCallInstruction* %p)\n", custom_call);
+  const xla::PrecisionConfig& cfg = custom_call->precision_config();
+  int prec_f8_flags_1 = GetXlaPrecisionConfigF8Flags(&cfg); 
+
+  const xla::PrecisionConfig& cfg2 = config.precision_config();
+  int prec_f8_flags_2 = GetXlaPrecisionConfigF8Flags(&cfg2); 
+
+  printf("F8 flags: %d %d\n", prec_f8_flags_1, prec_f8_flags_2);
 
   // GEMM may have two or three operands. However, in the three operand case,
   // the third operand is updated in-place, so we treat that as an output here.
@@ -1149,6 +1167,8 @@ tsl::StatusOr<Operation*> LhloDialectEmitter::EmitDnnConvolution(
                                           &builder_));
     attrs.set(op.getResultScaleAttrName(),
               builder_.getF64FloatAttr(backend_config.conv_result_scale()));
+    attrs.set(op.getF8FlagsAttrName(), 
+              builder_.getI64IntegerAttr(backend_config.f8_conv_backend_flags()));
 
     const auto& algorithm = backend_config.algorithm();
     std::vector<int64_t> knob_ids;
@@ -1172,7 +1192,6 @@ tsl::StatusOr<Operation*> LhloDialectEmitter::EmitDnnConvolution(
         get_layout_attribute(custom_call->shape().tuple_shapes(0).layout()));
     attrs.set(op.getBackendConfigAttrName(), config);
     op->setAttrs(attrs.getDictionary(op->getContext()));
-
     return op.getOperation();
   };
 

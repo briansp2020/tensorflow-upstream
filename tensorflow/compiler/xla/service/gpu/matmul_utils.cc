@@ -549,6 +549,7 @@ Status DoGemmWithAlgorithm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
                            Output beta, se::Stream* stream,
                            se::blas::AlgorithmType algorithm,
                            se::blas::ComputePrecision compute_precision,
+                           int f8_flags,
                            se::blas::ProfileResult* profile_result) {
   CHECK(output.transpose == se::blas::Transpose::kNoTranspose);
   PrimitiveType lhs_type = primitive_util::NativeToPrimitiveType<Input>();
@@ -557,10 +558,10 @@ Status DoGemmWithAlgorithm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
       se::blas::ComputationType computation_type,
       GetBlasComputationType(lhs_type, output_type, compute_precision));
   se::DeviceMemory<Output> output_data(output.data);
-
+  se::DeviceMemory<Input> lhs_mem = lhs.cast<Input>(), rhs_mem = rhs.cast<Input>();
   se::blas::GemmCall call(lhs.transpose, rhs.transpose, m, n, k, 
-      lhs.cast<Input>(), lhs.leading_dim_stride, 
-      rhs.cast<Input>(), rhs.leading_dim_stride, 
+      lhs_mem, lhs.leading_dim_stride, 
+      rhs_mem, rhs.leading_dim_stride, 
       &output_data, output.leading_dim_stride,
       &alpha, &beta);
 
@@ -572,6 +573,11 @@ Status DoGemmWithAlgorithm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
   call.precision = compute_precision;
   call.output_profile_result = profile_result;
   call.algorithm = algorithm;
+  if(f8_flags == 0) {
+    printf("DoGemmWithAlgorithm: uninitialized f8_flags\n");
+    exit(-1);
+  }
+  call.context = (se::blas::CallContext) f8_flags;
   return stream->ThenBlasGemm(call);
 }
 
@@ -582,6 +588,7 @@ Status DoGemm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
               se::Stream* stream,
               std::optional<se::blas::AlgorithmType> algorithm,
               se::blas::ComputePrecision compute_precision,
+              int f8_flags,
               se::blas::ProfileResult* profile_result) {
   CHECK(output.transpose == se::blas::Transpose::kNoTranspose);
   se::DeviceMemory<Input> output_data(output.data);
@@ -594,9 +601,10 @@ Status DoGemm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
   }
 #endif
 
+  se::DeviceMemory<Input> lhs_mem = lhs.cast<Input>(), rhs_mem = rhs.cast<Input>();
   se::blas::GemmCall call(lhs.transpose, rhs.transpose, m, n, k, 
-      lhs.cast<Input>(), lhs.leading_dim_stride,
-      rhs.cast<Input>(), rhs.leading_dim_stride,
+      lhs_mem, lhs.leading_dim_stride,
+      rhs_mem, rhs.leading_dim_stride,
       &output_data, output.leading_dim_stride,
       &alpha, &beta);
   call.precision  = compute_precision;
@@ -606,6 +614,7 @@ Status DoGemm(int64_t batch_size, int64_t m, int64_t n, int64_t k,
     call.stride_c = output.batch_stride;
     call.batch_count = batch_size;
   }
+  call.context = (se::blas::CallContext) f8_flags;
   return stream->ThenBlasGemm(call);
 }
 
@@ -615,6 +624,7 @@ Status RunGemm(const GemmConfig& config, se::DeviceMemoryBase lhs_buffer,
                se::DeviceMemoryBase rhs_buffer,
                se::DeviceMemoryBase output_buffer, se::Stream* stream,
                std::optional<se::blas::AlgorithmType> algorithm,
+               int f8_flags,
                se::blas::ProfileResult* profile_result) {
   VLOG(2) << "Executing a GemmThunk";
 
@@ -625,6 +635,7 @@ Status RunGemm(const GemmConfig& config, se::DeviceMemoryBase lhs_buffer,
       MakeOutputColumnMajor(lhs_layout, rhs_layout, output_layout);
   if (must_swap_operands) {
     std::swap(lhs_buffer, rhs_buffer);
+    f8_flags = (f8_flags & ~3) | ((f8_flags&1)<<1) | ((f8_flags&2)>>1);
   }
 
   int64_t m = output_layout.num_rows;
@@ -656,38 +667,40 @@ Status RunGemm(const GemmConfig& config, se::DeviceMemoryBase lhs_buffer,
           batch_size, m, n, k, lhs, rhs, output,
           static_cast<int32_t>(config.alpha.real()),
           static_cast<int32_t>(config.beta), stream, *algorithm,
-          se::blas::kDefaultComputePrecision, profile_result);
+          se::blas::kDefaultComputePrecision, f8_flags, profile_result);
     case F16:
       return DoGemm<Eigen::half>(batch_size, m, n, k, lhs, rhs, output,
                                  static_cast<Eigen::half>(config.alpha.real()),
                                  static_cast<Eigen::half>(config.beta), stream,
                                  algorithm, config.compute_precision,
+                                 f8_flags,
                                  profile_result);
     case BF16:
       return DoGemm<Eigen::bfloat16>(
           batch_size, m, n, k, lhs, rhs, output,
           static_cast<Eigen::bfloat16>(config.alpha.real()),
           static_cast<Eigen::bfloat16>(config.beta), stream, algorithm,
-          config.compute_precision, profile_result);
+          config.compute_precision, f8_flags, profile_result);
     case F32:
       return DoGemm<float>(batch_size, m, n, k, lhs, rhs, output,
                            config.alpha.real(), config.beta, stream, algorithm,
-                           config.compute_precision, profile_result);
+                           config.compute_precision, f8_flags, profile_result);
     case F64:
       return DoGemm<double>(batch_size, m, n, k, lhs, rhs, output,
                             config.alpha.real(), config.beta, stream, algorithm,
-                            config.compute_precision, profile_result);
+                            config.compute_precision, f8_flags, profile_result);
     case C64:
       return DoGemm<complex64>(batch_size, m, n, k, lhs, rhs, output,
                                static_cast<complex64>(config.alpha),
                                static_cast<complex64>(config.beta), stream,
                                algorithm, config.compute_precision,
+                               f8_flags,
                                profile_result);
     case C128:
       return DoGemm<complex128>(
           batch_size, m, n, k, lhs, rhs, output, config.alpha,
           static_cast<complex128>(config.beta), stream, algorithm,
-          config.compute_precision, profile_result);
+          config.compute_precision, f8_flags, profile_result);
     default:
       return InternalError(
           "Unexpected GEMM dtype: %s",

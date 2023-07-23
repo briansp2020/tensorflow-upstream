@@ -33,11 +33,11 @@ class CholeskyExpander : public OpExpanderPass {
       HloInstruction* instruction) override;
 
   virtual StatusOr<std::pair<XlaOp, XlaOp>> CholeskyUnblocked(
-      XlaOp a, PrecisionConfig::Precision precision);
+      XlaOp a, PrecisionConfig precision);
 
  private:
   XlaOp BuildCholesky(XlaOp a, int64_t block_size,
-                      PrecisionConfig::Precision precision);
+                      PrecisionConfig precision);
 
   // Mapping from op signatures to existing computations.
   absl::flat_hash_map<std::string, HloComputation*> computation_cache_;

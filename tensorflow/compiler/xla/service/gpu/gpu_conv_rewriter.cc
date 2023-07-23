@@ -655,6 +655,7 @@ HloInstruction* ConvertBatchGroupedToFeatureGroupedConvolution(
 CudnnConvBackendConfig GetDefaultBackendConfig() {
   CudnnConvBackendConfig config;
   config.set_conv_result_scale(1);
+  config.set_f8_conv_backend_flags(256); // remove to enforce it being set properly elsewhere
   return config;
 }
 
@@ -702,6 +703,25 @@ StatusOr<bool> RunOnInstruction(HloInstruction* conv) {
 
   TF_RETURN_IF_ERROR(
       custom_call->set_backend_config(GetDefaultBackendConfig()));
+
+  TF_ASSIGN_OR_RETURN(auto const config, conv->backend_config<xla::gpu::GemmBackendConfig>());
+
+  auto attr = conv->frontend_attributes().map();
+  const PrecisionConfig& cfg = conv->precision_config();
+  int f8_flags = GetXlaPrecisionConfigF8Flags(&cfg);
+  printf("GpuConvRewriter: flags %d, attribute %s\n", f8_flags,
+    (attr.find("grad_flags") == attr.end()) ? "absent" : "present");
+
+  if(attr.find("grad_flags") == attr.end()) {
+    //printf("ERROR: gpu_conv_rewriter on a convolution with unset grad_flags\n");
+    //exit(-1);
+    f8_flags = 256;
+  } else {
+    f8_flags = std::stoi(attr["grad_flags"]) | 256;
+  }
+  auto backend_config = GetDefaultBackendConfig();
+  backend_config.set_f8_conv_backend_flags(f8_flags);
+  TF_RETURN_IF_ERROR(custom_call->set_backend_config(backend_config));
 
   VLOG(1) << "Replacing convolution " << conv->ToString() << " with "
           << custom_call->ToString();

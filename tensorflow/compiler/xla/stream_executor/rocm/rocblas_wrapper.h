@@ -270,6 +270,10 @@ using stream_executor::internal::CachedDsoLoader::GetRocblasDsoHandle;
 
 FOREACH_ROCBLAS_API(ROCBLAS_API_WRAPPER)
 
+#if ROCBLAS_VERSION_MAJOR>3 || (ROCBLAS_VERSION_MAJOR==3 && ROCBLAS_VERSION_MINOR>=1)
+ROCBLAS_API_WRAPPER(rocblas_gemm_ext2)
+#endif
+
 }  // namespace wrap
 }  // namespace stream_executor
 

@@ -1700,13 +1700,13 @@ def _MatMulGradAgainstFirstOnly(op, grad):
   t_b = op.get_attr("transpose_b")
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_math_ops.mat_mul(grad, b, transpose_b=True)
+    grad_a = gen_math_ops.mat_mul(grad, b, transpose_b=True, grad_a=True)
   elif not t_a and t_b:
-    grad_a = gen_math_ops.mat_mul(grad, b)
+    grad_a = gen_math_ops.mat_mul(grad, b, grad_a=True)
   elif t_a and not t_b:
-    grad_a = gen_math_ops.mat_mul(b, grad, transpose_b=True)
+    grad_a = gen_math_ops.mat_mul(b, grad, transpose_b=True, grad_b=True)
   elif t_a and t_b:
-    grad_a = gen_math_ops.mat_mul(b, grad, transpose_a=True, transpose_b=True)
+    grad_a = gen_math_ops.mat_mul(b, grad, transpose_a=True, transpose_b=True, grad_b=True)
   return grad_a, None
 
 
@@ -1716,13 +1716,13 @@ def _MatMulGradAgainstSecondOnly(op, grad):
   t_b = op.get_attr("transpose_b")
   a = math_ops.conj(op.inputs[0])
   if not t_a and not t_b:
-    grad_b = gen_math_ops.mat_mul(a, grad, transpose_a=True)
+    grad_b = gen_math_ops.mat_mul(a, grad, transpose_a=True, grad_b=True)
   elif not t_a and t_b:
-    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True)
+    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, grad_a=True)
   elif t_a and not t_b:
-    grad_b = gen_math_ops.mat_mul(a, grad)
+    grad_b = gen_math_ops.mat_mul(a, grad, grad_b=True)
   elif t_a and t_b:
-    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, transpose_b=True)
+    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, transpose_b=True, grad_a=True)
   return None, grad_b
 
 
@@ -1745,17 +1745,17 @@ def _MatMulGrad(op, grad):
   a = math_ops.conj(op.inputs[0])
   b = math_ops.conj(op.inputs[1])
   if not t_a and not t_b:
-    grad_a = gen_math_ops.mat_mul(grad, b, transpose_b=True)
-    grad_b = gen_math_ops.mat_mul(a, grad, transpose_a=True)
+    grad_a = gen_math_ops.mat_mul(grad, b, transpose_b=True, grad_a=True)
+    grad_b = gen_math_ops.mat_mul(a, grad, transpose_a=True, grad_b=True)
   elif not t_a and t_b:
-    grad_a = gen_math_ops.mat_mul(grad, b)
-    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True)
+    grad_a = gen_math_ops.mat_mul(grad, b, grad_a=True)
+    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, grad_a=True)
   elif t_a and not t_b:
-    grad_a = gen_math_ops.mat_mul(b, grad, transpose_b=True)
-    grad_b = gen_math_ops.mat_mul(a, grad)
+    grad_a = gen_math_ops.mat_mul(b, grad, transpose_b=True, grad_b=True)
+    grad_b = gen_math_ops.mat_mul(a, grad, grad_b=True)
   elif t_a and t_b:
-    grad_a = gen_math_ops.mat_mul(b, grad, transpose_a=True, transpose_b=True)
-    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, transpose_b=True)
+    grad_a = gen_math_ops.mat_mul(b, grad, transpose_a=True, transpose_b=True, grad_b=True)
+    grad_b = gen_math_ops.mat_mul(grad, a, transpose_a=True, transpose_b=True, grad_a=True)
   return grad_a, grad_b
 
 
@@ -1772,7 +1772,7 @@ def _SparseMatMulGrad(op, grad):
   is_sparse[grad.ref()] = not context.executing_eagerly() and (
       grad.op.type == "ReluGrad")
 
-  def _SparseMatMul(t1, t2, out_dtype, transpose_a=False, transpose_b=False):
+  def _SparseMatMul(t1, t2, out_dtype, transpose_a=False, transpose_b=False, grad_a=False, grad_b=False):
     """Helper function to create SparseMatMul op."""
 
     assert t1.ref() in is_sparse and t2.ref() in is_sparse
@@ -1787,7 +1787,9 @@ def _SparseMatMulGrad(op, grad):
         transpose_a=transpose_a,
         transpose_b=transpose_b,
         a_is_sparse=t1_sparse,
-        b_is_sparse=t2_sparse)
+        b_is_sparse=t2_sparse,
+        grad_a=grad_a,
+        grad_b=grad_b)
     if prod.dtype != out_dtype:
       prod = math_ops.cast(prod, out_dtype)
     return prod
@@ -1795,20 +1797,20 @@ def _SparseMatMulGrad(op, grad):
   dtype_a = op.inputs[0].dtype
   dtype_b = op.inputs[1].dtype
   if not t_a and not t_b:
-    return (_SparseMatMul(grad, op.inputs[1], dtype_a, transpose_b=True),
-            _SparseMatMul(op.inputs[0], grad, dtype_b, transpose_a=True))
+    return (_SparseMatMul(grad, op.inputs[1], dtype_a, transpose_b=True, grad_a=True),
+            _SparseMatMul(op.inputs[0], grad, dtype_b, transpose_a=True, grad_b=True))
   elif not t_a and t_b:
-    return (_SparseMatMul(grad, op.inputs[1], dtype_a),
-            _SparseMatMul(grad, op.inputs[0], dtype_b, transpose_a=True))
+    return (_SparseMatMul(grad, op.inputs[1], dtype_a, grad_a=True),
+            _SparseMatMul(grad, op.inputs[0], dtype_b, transpose_a=True, grad_a=True))
   elif t_a and not t_b:
-    return (_SparseMatMul(op.inputs[1], grad, dtype_a, transpose_b=True),
-            _SparseMatMul(op.inputs[0], grad, dtype_b))
+    return (_SparseMatMul(op.inputs[1], grad, dtype_a, transpose_b=True, grad_b=True),
+            _SparseMatMul(op.inputs[0], grad, dtype_b, grad_b=True))
   elif t_a and t_b:
     return (_SparseMatMul(
-        op.inputs[1], grad, dtype_a, transpose_a=True, transpose_b=True),
+        op.inputs[1], grad, dtype_a, transpose_a=True, transpose_b=True, grad_b=True),
             _SparseMatMul(
                 grad, op.inputs[0], dtype_b, transpose_a=True,
-                transpose_b=True))
+                transpose_b=True, grad_a=True))
 
 
 @ops.RegisterGradient("Floor")
@@ -1842,18 +1844,18 @@ def _BatchMatMul(op, grad):
 
   if not adj_x:
     if not adj_y:
-      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=True)
-      grad_y = math_ops.matmul(x, grad, adjoint_a=True, adjoint_b=False)
+      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=True, grad_a=True)
+      grad_y = math_ops.matmul(x, grad, adjoint_a=True, adjoint_b=False, grad_b=True)
     else:
-      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=False)
-      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=False)
+      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=False, grad_a=True)
+      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=False, grad_a=True)
   else:
     if not adj_y:
-      grad_x = math_ops.matmul(y, grad, adjoint_a=False, adjoint_b=True)
-      grad_y = math_ops.matmul(x, grad, adjoint_a=False, adjoint_b=False)
+      grad_x = math_ops.matmul(y, grad, adjoint_a=False, adjoint_b=True, grad_b=True)
+      grad_y = math_ops.matmul(x, grad, adjoint_a=False, adjoint_b=False, grad_b=True)
     else:
-      grad_x = math_ops.matmul(y, grad, adjoint_a=True, adjoint_b=True)
-      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=True)
+      grad_x = math_ops.matmul(y, grad, adjoint_a=True, adjoint_b=True, grad_b=True)
+      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=True, grad_a=True)
 
   return grad_x, grad_y
 
@@ -1869,18 +1871,18 @@ def _BatchMatMulV2(op, grad):
 
   if not adj_x:
     if not adj_y:
-      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=True)
-      grad_y = math_ops.matmul(x, grad, adjoint_a=True, adjoint_b=False)
+      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=True, grad_a=True)
+      grad_y = math_ops.matmul(x, grad, adjoint_a=True, adjoint_b=False, grad_b=True)
     else:
-      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=False)
-      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=False)
+      grad_x = math_ops.matmul(grad, y, adjoint_a=False, adjoint_b=False, grad_a=True)
+      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=False, grad_a=True)
   else:
     if not adj_y:
-      grad_x = math_ops.matmul(y, grad, adjoint_a=False, adjoint_b=True)
-      grad_y = math_ops.matmul(x, grad, adjoint_a=False, adjoint_b=False)
+      grad_x = math_ops.matmul(y, grad, adjoint_a=False, adjoint_b=True, grad_b=True)
+      grad_y = math_ops.matmul(x, grad, adjoint_a=False, adjoint_b=False, grad_b=True)
     else:
-      grad_x = math_ops.matmul(y, grad, adjoint_a=True, adjoint_b=True)
-      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=True)
+      grad_x = math_ops.matmul(y, grad, adjoint_a=True, adjoint_b=True, grad_b=True)
+      grad_y = math_ops.matmul(grad, x, adjoint_a=True, adjoint_b=True, grad_a=True)
 
   # Possibly reduce along the broadcasted batch dimensions, if broadcasting
   # is required.

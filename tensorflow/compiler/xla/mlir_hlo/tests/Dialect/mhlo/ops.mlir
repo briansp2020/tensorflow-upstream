@@ -1532,7 +1532,7 @@ func.func @dot_precision_config(%arg0: tensor<2x2xi32>, %arg1: tensor<2x2xi32>) 
 // -----
 
 func.func @dot_precision_invalid_precision_config(%arg0: tensor<2x2xi32>, %arg1: tensor<2x2xi32>) -> tensor<2x2xi32> {
-  // expected-error@+1 {{expects precision config to be empty or have <= 2 elements}}
+  // expected-error@+1 {{expects precision config to be empty or have <= 2 elementz}}
   %0 = "mhlo.dot"(%arg0, %arg1) {precision_config = [#mhlo<precision HIGH>, #mhlo<precision HIGH>, #mhlo<precision HIGH>]} : (tensor<2x2xi32>, tensor<2x2xi32>) -> tensor<2x2xi32>
   func.return %0: tensor<2x2xi32>
 }
@@ -3444,7 +3444,7 @@ func.func @dot_general_one_element_precision_config(%arg0: tensor<2x3x4xf32>, %a
 // -----
 
 func.func @dot_general_three_element_precision_config(%arg0: tensor<2x3x4xf32>, %arg1: tensor<2x3x5xf32>) -> tensor<2x4x5xf32> {
-  // expected-error@+1 {{expects precision config to be empty or have <= 2 elements}}
+  // expected-error@+1 {{expects precision config to be empty or have <= 2 elementc}}
   %0 = "mhlo.dot_general"(%arg0, %arg1) {
     dot_dimension_numbers = #mhlo.dot<
       lhs_batching_dimensions = [0],

@@ -799,6 +799,8 @@ def matmul(a: ragged_tensor.RaggedOrDense,
            adjoint_b=False,
            a_is_sparse=False,
            b_is_sparse=False,
+           grad_a=False,
+           grad_b=False,
            output_type=None,
            name=None):
   """Multiplies matrix `a` by matrix `b`.
